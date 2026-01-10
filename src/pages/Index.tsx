@@ -625,13 +625,23 @@ const Index = () => {
 
       const refundAmount = Number(orderRow.amount ?? orderRow.total_price ?? activeOrder.amount ?? 0);
 
-      // Update order status to cancelled
-      const { error: orderError } = await supabase
+      // Update order status to cancelled (وتأكيدها من الداتابيز)
+      const { data: updatedOrder, error: orderError } = await supabase
         .from('orders')
         .update({ status: 'cancelled' })
-        .eq('id', activeOrder.id);
+        .eq('id', activeOrder.id)
+        .select('id, status')
+        .maybeSingle();
 
       if (orderError) throw orderError;
+      if (!updatedOrder || updatedOrder.status !== 'cancelled') {
+        throw new Error('ORDER_CANCEL_NOT_CONFIRMED');
+      }
+
+      // تحديث واجهة سجل الطلبات فوراً (حتى قبل إعادة الجلب)
+      setTokenOrders((prev) =>
+        prev.map((o) => (o.id === activeOrder.id ? { ...o, status: 'cancelled' } : o))
+      );
 
       // Fetch latest balance then refund (لتفادي أي تعارض)
       const { data: currentToken, error: tokenFetchError } = await supabase
@@ -651,19 +661,25 @@ const Index = () => {
 
       if (tokenError) throw tokenError;
 
-      // Refresh orders list (عشان الحالة تظهر فوراً صح)
-      const { data: ordersData } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('token_id', tokenData.id)
-        .order('created_at', { ascending: false });
+      // Refresh orders list (محاولة 2x لتفادي أي تأخير)
+      const fetchOrders = async () => {
+        const { data: ordersData } = await supabase
+          .from('orders')
+          .select('*')
+          .eq('token_id', tokenData.id)
+          .order('created_at', { ascending: false });
 
-      setTokenOrders(
-        (ordersData || []).map((o: any) => ({
-          ...o,
-          amount: o.amount || o.total_price,
-        }))
-      );
+        setTokenOrders(
+          (ordersData || []).map((o: any) => ({
+            ...o,
+            amount: o.amount || o.total_price,
+          }))
+        );
+      };
+
+      await fetchOrders();
+      await new Promise((r) => setTimeout(r, 250));
+      await fetchOrders();
 
       // Update local state
       setTokenBalance(newBalance);
@@ -816,46 +832,77 @@ const Index = () => {
   };
 
   // Real-time تحديث سجل الطلبات والرصيد بعد عرض الرصيد (بدون ريفريش)
+  // + Polling بسيط كـ fallback لو الـ real-time مش شغال على بعض الجداول
   useEffect(() => {
     if (!showBalance || !tokenData?.id) return;
 
+    const refetchOrders = async () => {
+      const { data: ordersData } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('token_id', tokenData.id)
+        .order('created_at', { ascending: false });
+
+      setTokenOrders((ordersData || []).map((o: any) => ({
+        ...o,
+        amount: o.amount || o.total_price,
+      })));
+    };
+
+    const refetchBalance = async () => {
+      const { data: currentToken } = await supabase
+        .from('tokens')
+        .select('balance')
+        .eq('id', tokenData.id)
+        .maybeSingle();
+      if (currentToken?.balance !== undefined && currentToken?.balance !== null) {
+        setTokenBalance(Number(currentToken.balance));
+      }
+    };
+
     const ordersChannel = supabase
       .channel(`token-orders-${tokenData.id}`)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'orders',
-        filter: `token_id=eq.${tokenData.id}`,
-      }, async () => {
-        const { data: ordersData } = await supabase
-          .from('orders')
-          .select('*')
-          .eq('token_id', tokenData.id)
-          .order('created_at', { ascending: false });
-
-        setTokenOrders((ordersData || []).map((o: any) => ({
-          ...o,
-          amount: o.amount || o.total_price,
-        })));
-      })
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'orders',
+          filter: `token_id=eq.${tokenData.id}`,
+        },
+        () => {
+          refetchOrders();
+        }
+      )
       .subscribe();
 
     const tokenChannel = supabase
       .channel(`token-balance-${tokenData.id}`)
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'tokens',
-        filter: `id=eq.${tokenData.id}`,
-      }, (payload) => {
-        const updated = payload.new as any;
-        if (updated?.balance !== undefined && updated?.balance !== null) {
-          setTokenBalance(Number(updated.balance));
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'tokens',
+          filter: `id=eq.${tokenData.id}`,
+        },
+        (payload) => {
+          const updated = payload.new as any;
+          if (updated?.balance !== undefined && updated?.balance !== null) {
+            setTokenBalance(Number(updated.balance));
+          }
         }
-      })
+      )
       .subscribe();
 
+    // Polling fallback كل 10 ثواني
+    const intervalId = window.setInterval(() => {
+      refetchOrders();
+      refetchBalance();
+    }, 10000);
+
     return () => {
+      window.clearInterval(intervalId);
       supabase.removeChannel(ordersChannel);
       supabase.removeChannel(tokenChannel);
     };
