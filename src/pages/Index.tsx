@@ -638,41 +638,52 @@ const Index = () => {
 
     try {
       // Call Edge Function to cancel order (bypasses RLS)
-      const response = await fetch(
-        `https://ymcabvghfecbbbugkpow.supabase.co/functions/v1/cancel-order`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            orderId: activeOrder.id,
-            tokenId: tokenData.id,
-          }),
+      const { data, error } = await supabase.functions.invoke('cancel-order', {
+        body: {
+          orderId: activeOrder.id,
+          tokenId: tokenData.id,
+        },
+      });
+
+      // supabase-js treats non-2xx as error; try to extract body message if possible
+      if (error) {
+        let parsed: any = null;
+        try {
+          parsed = await (error as any)?.context?.json?.();
+        } catch {
+          // ignore
         }
-      );
 
-      const result = await response.json();
+        const errCode = parsed?.error || (error as any).message || 'REQUEST_FAILED';
+        const errMsg = parsed?.message || 'فشل في الاتصال بالخادم، حاول مرة أخرى';
 
-      if (!response.ok || !result.success) {
-        // Handle specific errors
-        if (result.error === 'ORDER_ALREADY_CANCELLED') {
+        if (errCode === 'ORDER_ALREADY_CANCELLED') {
           setActiveOrder((prev) => (prev ? { ...prev, status: 'cancelled' } : prev));
-          toast({ title: 'تنبيه', description: result.message || 'تم إلغاء الطلب بالفعل' });
-        } else if (result.error === 'ORDER_IN_PROGRESS') {
+          toast({ title: 'تنبيه', description: errMsg || 'تم إلغاء الطلب بالفعل' });
+        } else if (errCode === 'ORDER_IN_PROGRESS') {
           setActiveOrder((prev) => (prev ? { ...prev, status: 'in_progress' } : prev));
           toast({
             title: 'لا يمكن الإلغاء',
-            description: result.message || 'لا يمكن إلغاء الطلب لأنه قيد التنفيذ',
+            description: errMsg || 'لا يمكن إلغاء الطلب لأنه قيد التنفيذ',
             variant: 'destructive',
           });
         } else {
           toast({
             title: 'خطأ',
-            description: result.message || result.error || 'فشل في إلغاء الطلب',
+            description: errMsg,
             variant: 'destructive',
           });
         }
+        return;
+      }
+
+      const result = data as any;
+      if (!result?.success) {
+        toast({
+          title: 'خطأ',
+          description: result?.message || result?.error || 'فشل في إلغاء الطلب',
+          variant: 'destructive',
+        });
         return;
       }
 
