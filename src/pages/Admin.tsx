@@ -1516,18 +1516,15 @@ const Admin = () => {
               </button>
 
               <button
-                onClick={async () => {
+                onClick={() => {
                   if (!soundEnabled) {
-                    const result = await toggleSound();
+                    toggleSound();
                     toast({
-                      title: "تم تفعيل الصوت",
-                      description:
-                        result === "mp3"
-                          ? "تم تشغيل اختبار الصوت. عند وصول طلب جديد هتسمع إشعار."
-                          : "تم تفعيل الصوت، لكن ملف MP3 لم يعمل—هنستخدم تنبيه بديل.",
+                      title: "تم تفعيل الصوت 🔔",
+                      description: "عند وصول طلب جديد أو طلب شحن هتسمع إشعار صوتي.",
                     });
                   } else {
-                    await toggleSound();
+                    toggleSound();
                     toast({ title: "تم إيقاف الصوت" });
                   }
                 }}
@@ -1543,14 +1540,13 @@ const Admin = () => {
               </button>
 
               <button
-                onClick={async () => {
-                  const result = await testSound();
+                onClick={() => {
+                  const success = testSound();
                   toast({
-                    title: "اختبار الصوت",
-                    description:
-                      result === "mp3"
-                        ? "تم تشغيل ملف الإشعار بنجاح."
-                        : "ملف MP3 لم يعمل، فتم تشغيل تنبيه بديل (Beep).",
+                    title: success ? "تم تشغيل الصوت ✅" : "فشل تشغيل الصوت ❌",
+                    description: success 
+                      ? "الصوت يعمل بشكل صحيح!" 
+                      : "تأكد من أن المتصفح يسمح بتشغيل الصوت.",
                   });
                 }}
                 className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted text-muted-foreground hover:bg-muted/80 transition-colors"
