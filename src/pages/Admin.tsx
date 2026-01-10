@@ -48,6 +48,7 @@ interface ProductOption {
   description: string | null;
   estimated_time: string | null;
   is_active: boolean;
+  purchase_limit: number | null;
 }
 
 interface Token {
@@ -720,7 +721,7 @@ const Admin = () => {
 
   // Form states
   const [productForm, setProductForm] = useState({ name: '', price: 0, duration: '', available: 0, instant_delivery: false });
-  const [optionForm, setOptionForm] = useState({ name: '', type: 'email_password', description: '', estimated_time: '', price: 0, duration: '', delivery_type: 'manual', is_active: true });
+  const [optionForm, setOptionForm] = useState({ name: '', type: 'email_password', description: '', estimated_time: '', price: 0, duration: '', delivery_type: 'manual', is_active: true, purchase_limit: 0 });
   const [tokenForm, setTokenForm] = useState({ token: '', balance: 0 });
 
   // New options to add with product
@@ -1131,11 +1132,12 @@ const Admin = () => {
         price: option.price || 0,
         duration: option.duration || '',
         delivery_type: isAuto ? 'auto' : 'manual',
-        is_active: option.is_active !== false
+        is_active: option.is_active !== false,
+        purchase_limit: option.purchase_limit || 0
       });
     } else {
       setEditingOption(null);
-      setOptionForm({ name: '', type: 'email_password', description: '', estimated_time: '', price: 0, duration: '', delivery_type: 'manual', is_active: true });
+      setOptionForm({ name: '', type: 'email_password', description: '', estimated_time: '', price: 0, duration: '', delivery_type: 'manual', is_active: true, purchase_limit: 0 });
     }
     setShowOptionModal(true);
   };
@@ -1158,7 +1160,8 @@ const Admin = () => {
           estimated_time: optionForm.estimated_time || null,
           price: optionForm.price || 0,
           duration: optionForm.duration || null,
-          is_active: optionForm.is_active
+          is_active: optionForm.is_active,
+          purchase_limit: optionForm.purchase_limit > 0 ? optionForm.purchase_limit : null
         })
         .eq('id', editingOption.id);
 
@@ -1176,7 +1179,8 @@ const Admin = () => {
         estimated_time: optionForm.estimated_time || null,
         price: optionForm.price || 0,
         duration: optionForm.duration || null,
-        is_active: optionForm.is_active
+        is_active: optionForm.is_active,
+        purchase_limit: optionForm.purchase_limit > 0 ? optionForm.purchase_limit : null
       });
 
       if (error) {
@@ -2272,6 +2276,29 @@ const Admin = () => {
                     optionForm.is_active ? 'right-1' : 'left-1'
                   }`} />
                 </button>
+              </div>
+
+              {/* Purchase Limit */}
+              <div className="p-3 bg-primary/5 rounded-lg border border-primary/20">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <label className="text-sm font-medium text-foreground flex items-center gap-2">
+                      <Shield className="w-4 h-4 text-primary" />
+                      حد الشراء لكل جهاز
+                    </label>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      حدد عدد المرات اللي العميل يقدر يشتري فيها هذا المنتج من نفس الجهاز (0 = بدون حد)
+                    </p>
+                  </div>
+                </div>
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="0 = بدون حد"
+                  value={optionForm.purchase_limit}
+                  onChange={(e) => setOptionForm({ ...optionForm, purchase_limit: parseInt(e.target.value) || 0 })}
+                  className="input-field w-full mt-2"
+                />
               </div>
 
               {/* Description */}
