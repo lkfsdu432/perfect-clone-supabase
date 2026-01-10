@@ -1317,24 +1317,23 @@ const Index = () => {
               {/* Buttons */}
               {activeOrder ? (
                 <div className="space-y-3">
-                  {/* Cancel button - only if pending */}
-                  {activeOrder.status === 'pending' && (
-                    <button
-                      onClick={handleCancelOrder}
-                      disabled={isLoading}
-                      className="w-full py-3 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg disabled:opacity-50 transition-colors"
-                    >
-                      {isLoading ? 'جاري الإلغاء...' : 'إلغاء الطلب واسترداد المبلغ'}
-                    </button>
-                  )}
-                  {/* Message when order is in progress - cannot cancel */}
-                  {activeOrder.status === 'in_progress' && (
-                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-center">
-                      <p className="text-sm text-blue-800">
-                        ⚠️ الطلب قيد التنفيذ ولا يمكن إلغاؤه
-                      </p>
-                    </div>
-                  )}
+                  {/* Cancel button - always visible but disabled if in_progress */}
+                  <button
+                    onClick={handleCancelOrder}
+                    disabled={isLoading || activeOrder.status === 'in_progress'}
+                    className={`w-full py-3 rounded-lg transition-colors ${
+                      activeOrder.status === 'in_progress'
+                        ? 'bg-muted text-muted-foreground cursor-not-allowed'
+                        : 'bg-yellow-500 hover:bg-yellow-600 text-white disabled:opacity-50'
+                    }`}
+                  >
+                    {isLoading
+                      ? 'جاري الإلغاء...'
+                      : activeOrder.status === 'in_progress'
+                      ? '⚠️ لا يمكن الإلغاء - الطلب قيد التنفيذ'
+                      : 'إلغاء الطلب واسترداد المبلغ'}
+                  </button>
+
                   <div className="flex gap-3">
                     <button
                       onClick={() => setStep('initial')}
