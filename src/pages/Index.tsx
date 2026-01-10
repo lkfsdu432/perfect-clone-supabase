@@ -72,7 +72,7 @@ interface RefundRequest {
   order_number: string;
   status: string;
   reason: string | null;
-  admin_note: string | null;
+  admin_notes: string | null;
   created_at: string;
   processed_at: string | null;
 }
@@ -1795,9 +1795,9 @@ const Index = () => {
                                       {refund.reason && (
                                         <p className="text-xs text-orange-700 mt-1">السبب: {refund.reason}</p>
                                       )}
-                                      {refund.admin_note && (
+                                      {refund.admin_notes && (
                                         <p className="text-xs text-muted-foreground mt-1 p-1.5 bg-background rounded border">
-                                          ملاحظة الإدارة: {refund.admin_note}
+                                          ملاحظة الإدارة: {refund.admin_notes}
                                         </p>
                                       )}
                                     </div>
