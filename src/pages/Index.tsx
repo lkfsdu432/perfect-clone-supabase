@@ -673,47 +673,41 @@ const Index = () => {
 
       const refundAmount = Number(orderRow.amount ?? orderRow.total_price ?? activeOrder.amount ?? 0);
 
-      // IMPORTANT: نحدّث بشرط status=pending لتفادي سباق الحالة (لو اتحول لـ in_progress قبل الإلغاء)
-      // ونطلب RETURNING علشان نعرف هل فعلاً اتعدل صف ولا لأ
-      const { data: updatedOrder, error: updateError } = await supabase
+      // Step 1: Update order status to cancelled (without RETURNING to avoid RLS issues)
+      const { error: updateError } = await supabase
         .from('orders')
         .update({ status: 'cancelled' })
         .eq('id', activeOrder.id)
-        .eq('status', 'pending')
-        .select('id, status')
-        .maybeSingle();
+        .eq('status', 'pending');
 
       if (updateError) throw updateError;
 
-      // لو مفيش صف اتعدل: غالباً الحالة اتغيرت بين القراءة والتحديث
-      if (!updatedOrder) {
-        const { data: latest, error: latestError } = await supabase
-          .from('orders')
-          .select('status')
-          .eq('id', activeOrder.id)
-          .maybeSingle();
+      // Step 2: Confirm the update with a separate SELECT
+      const { data: confirmedOrder, error: confirmError } = await supabase
+        .from('orders')
+        .select('status')
+        .eq('id', activeOrder.id)
+        .maybeSingle();
 
-        if (latestError) throw latestError;
+      if (confirmError) throw confirmError;
 
-        if (latest?.status) {
-          setActiveOrder((prev) => (prev ? { ...prev, status: latest.status } : prev));
+      // لو مفيش صف اتعدل: غالباً الحالة اتغيرت بين القراءة والتحديث أو الـ RLS منعت
+      if (!confirmedOrder || confirmedOrder.status !== 'cancelled') {
+        if (confirmedOrder?.status) {
+          setActiveOrder((prev) => (prev ? { ...prev, status: confirmedOrder.status } : prev));
         }
 
         toast({
           title: 'لا يمكن الإلغاء',
           description:
-            latest?.status === 'cancelled'
+            confirmedOrder?.status === 'cancelled'
               ? 'تم إلغاء الطلب بالفعل'
-              : latest?.status === 'in_progress'
+              : confirmedOrder?.status === 'in_progress'
               ? 'الطلب انتقل إلى قيد التنفيذ قبل الإلغاء لذلك لا يمكن إلغاؤه'
-              : 'لم يتم تنفيذ الإلغاء لأن حالة الطلب تغيّرت أو لا توجد صلاحية.',
+              : 'لم يتم تنفيذ الإلغاء - تأكد من وجود صلاحية UPDATE على جدول orders.',
           variant: 'destructive',
         });
         return;
-      }
-
-      if (updatedOrder.status !== 'cancelled') {
-        throw new Error('ORDER_CANCEL_FAILED');
       }
 
       // تحديث واجهة سجل الطلبات فوراً
