@@ -17,6 +17,7 @@ import { PaymentMethodsManagement } from '@/components/admin/PaymentMethodsManag
 import AdminUsersManagement from '@/components/admin/AdminUsersManagement';
 import NewsManagement from '@/components/admin/NewsManagement';
 import TokenActivityLog from '@/components/admin/TokenActivityLog';
+import StockManagement from '@/components/admin/StockManagement';
 
 interface Product {
   id: string;
@@ -695,7 +696,7 @@ interface UserPermissions {
 }
 
 const Admin = () => {
-  const [activeTab, setActiveTab] = useState<'products' | 'tokens' | 'orders' | 'refunds' | 'users' | 'coupons' | 'recharges' | 'payment_methods' | 'admin_users' | 'news' | 'token_log'>('orders');
+  const [activeTab, setActiveTab] = useState<'products' | 'tokens' | 'orders' | 'refunds' | 'users' | 'coupons' | 'recharges' | 'payment_methods' | 'admin_users' | 'news' | 'token_log' | 'stock'>('orders');
   const [products, setProducts] = useState<Product[]>([]);
   const [productOptions, setProductOptions] = useState<ProductOption[]>([]);
   const [tokens, setTokens] = useState<Token[]>([]);
@@ -706,6 +707,10 @@ const Admin = () => {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [userPermissions, setUserPermissions] = useState<UserPermissions | null>(null);
+  const [needsLogin, setNeedsLogin] = useState(false);
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginLoading, setLoginLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -922,7 +927,8 @@ const Admin = () => {
     const { data: { session } } = await supabase.auth.getSession();
     
     if (!session) {
-      navigate('/admin/login');
+      setNeedsLogin(true);
+      setIsLoading(false);
       return;
     }
 
@@ -935,11 +941,13 @@ const Admin = () => {
 
     if (error || !adminData) {
       await supabase.auth.signOut();
-      navigate('/admin/login');
+      setNeedsLogin(true);
+      setIsLoading(false);
       return;
     }
 
     setIsAdmin(true);
+    setNeedsLogin(false);
     setUserPermissions({
       can_manage_orders: adminData.can_manage_orders || adminData.is_super_admin,
       can_manage_products: adminData.can_manage_products || adminData.is_super_admin,
@@ -958,6 +966,52 @@ const Admin = () => {
     else if (adminData.can_manage_coupons) setActiveTab('coupons');
     
     setIsLoading(false);
+  };
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginLoading(true);
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: loginEmail,
+        password: loginPassword,
+      });
+
+      if (error) throw error;
+
+      if (data.user) {
+        // Check if user is admin
+        const { data: adminData, error: adminError } = await supabase
+          .from('admin_auth')
+          .select('*')
+          .eq('user_id', data.user.id)
+          .maybeSingle();
+
+        if (adminError || !adminData) {
+          await supabase.auth.signOut();
+          toast({
+            title: 'خطأ',
+            description: 'هذا الحساب ليس لديه صلاحيات أدمن',
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        toast({ title: 'نجاح', description: 'تم تسجيل الدخول بنجاح' });
+        setNeedsLogin(false);
+        setIsLoading(true);
+        checkAuth();
+      }
+    } catch (error: any) {
+      toast({
+        title: 'خطأ',
+        description: error.message || 'فشل تسجيل الدخول',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoginLoading(false);
+    }
   };
 
   const fetchData = async () => {
@@ -1495,6 +1549,64 @@ const Admin = () => {
     );
   }
 
+  // Show login form if not authenticated
+  if (needsLogin) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="bg-card rounded-xl border border-border p-8 w-full max-w-md">
+          <div className="text-center mb-8">
+            <h1 className="text-2xl font-bold">
+              <span className="text-primary">BOOM</span>
+              <span className="text-foreground">PAY</span>
+            </h1>
+            <p className="text-muted-foreground mt-2">لوحة تحكم المسؤول</p>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">البريد الإلكتروني</label>
+              <input
+                type="email"
+                value={loginEmail}
+                onChange={(e) => setLoginEmail(e.target.value)}
+                className="input-field w-full"
+                placeholder="admin@example.com"
+                required
+                dir="ltr"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">كلمة المرور</label>
+              <input
+                type="password"
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                className="input-field w-full"
+                placeholder="••••••••"
+                required
+                minLength={6}
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loginLoading}
+              className="btn-primary w-full py-3 flex items-center justify-center gap-2"
+            >
+              {loginLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <LogOut className="w-4 h-4 rotate-180" />
+              )}
+              {loginLoading ? 'جاري المعالجة...' : 'تسجيل الدخول'}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -1587,6 +1699,7 @@ const Admin = () => {
               { id: 'orders', label: 'الطلبات', icon: ShoppingBag, count: orders.length, permission: 'can_manage_orders' },
               { id: 'recharges', label: 'طلبات الشحن', icon: CreditCard, count: null, permission: 'can_manage_tokens' },
               { id: 'products', label: 'الأقسام', icon: Package, count: products.length, permission: 'can_manage_products' },
+              { id: 'stock', label: 'المخزون', icon: Database, count: null, permission: 'can_manage_stock' },
               { id: 'tokens', label: 'التوكنات', icon: Key, count: tokens.length, permission: 'can_manage_tokens' },
               { id: 'token_log', label: 'سجل التوكنات', icon: Database, count: null, permission: 'can_manage_tokens' },
               { id: 'refunds', label: 'الاستردادات', icon: RotateCcw, count: refundRequests.filter(r => r.status === 'pending').length, permission: 'can_manage_refunds' },
@@ -1600,7 +1713,7 @@ const Admin = () => {
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id as 'products' | 'tokens' | 'orders' | 'refunds' | 'users' | 'coupons' | 'recharges' | 'payment_methods' | 'admin_users' | 'news' | 'token_log')}
+                  onClick={() => setActiveTab(tab.id as 'products' | 'tokens' | 'orders' | 'refunds' | 'users' | 'coupons' | 'recharges' | 'payment_methods' | 'admin_users' | 'news' | 'token_log' | 'stock')}
                   className={`relative flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
                     isActive
                       ? 'bg-primary text-primary-foreground shadow-md'
@@ -2452,6 +2565,9 @@ const Admin = () => {
 
       {/* Token Activity Log Tab */}
       {activeTab === 'token_log' && <TokenActivityLog />}
+
+      {/* Stock Management Tab */}
+      {activeTab === 'stock' && <StockManagement />}
     </div>
   );
 };
