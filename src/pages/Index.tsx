@@ -36,6 +36,7 @@ interface ProductOption {
   estimated_time: string | null;
   is_active: boolean;
   purchase_limit: number | null;
+  max_quantity_per_order: number | null;
 }
 
 interface Order {
@@ -1207,25 +1208,47 @@ const Index = () => {
                             <input
                               type="number"
                               min="1"
-                              max={optionStockCounts[selectedOption.id] || 1}
+                              max={(() => {
+                                const stockMax = optionStockCounts[selectedOption.id] || 1;
+                                const orderLimit = selectedOption.max_quantity_per_order;
+                                return orderLimit && orderLimit > 0 ? Math.min(stockMax, orderLimit) : stockMax;
+                              })()}
                               value={quantity}
                               onChange={(e) => {
                                 const val = parseInt(e.target.value) || 1;
-                                const max = optionStockCounts[selectedOption.id] || 1;
+                                const stockMax = optionStockCounts[selectedOption.id] || 1;
+                                const orderLimit = selectedOption.max_quantity_per_order;
+                                const max = orderLimit && orderLimit > 0 ? Math.min(stockMax, orderLimit) : stockMax;
                                 setQuantity(Math.max(1, Math.min(max, val)));
                               }}
                               className="w-16 h-8 text-center font-semibold bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                             />
                             <button
                               type="button"
-                              onClick={() => setQuantity(q => Math.min(optionStockCounts[selectedOption.id] || 1, q + 1))}
+                              onClick={() => {
+                                const stockMax = optionStockCounts[selectedOption.id] || 1;
+                                const orderLimit = selectedOption.max_quantity_per_order;
+                                const max = orderLimit && orderLimit > 0 ? Math.min(stockMax, orderLimit) : stockMax;
+                                setQuantity(q => Math.min(max, q + 1));
+                              }}
                               className="w-8 h-8 rounded-lg border border-border hover:bg-muted transition-colors flex items-center justify-center"
-                              disabled={quantity >= (optionStockCounts[selectedOption.id] || 1)}
+                              disabled={(() => {
+                                const stockMax = optionStockCounts[selectedOption.id] || 1;
+                                const orderLimit = selectedOption.max_quantity_per_order;
+                                const max = orderLimit && orderLimit > 0 ? Math.min(stockMax, orderLimit) : stockMax;
+                                return quantity >= max;
+                              })()}
                             >
                               +
                             </button>
                           </div>
                         </div>
+                      )}
+                      {/* Show max quantity limit info */}
+                      {selectedOption.max_quantity_per_order && selectedOption.max_quantity_per_order > 0 && (selectedOption.type === 'none' || !selectedOption.type) && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          الحد الأقصى: {selectedOption.max_quantity_per_order} في العملية الواحدة
+                        </p>
                       )}
 
                       {/* Total price for multiple items */}

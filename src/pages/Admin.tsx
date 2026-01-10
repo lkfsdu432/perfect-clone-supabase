@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import {
   Package, Key, ShoppingBag, LogOut, Plus, Trash2, Edit2, Save, X,
   ChevronDown, ChevronUp, Settings, Copy, Eye, EyeOff, Clock, CheckCircle2,
-  XCircle, Loader2, LayoutGrid, Zap, Database, Bell, BellOff, Volume2, VolumeX, TrendingUp, DollarSign, Users, MessageCircle, Link, RotateCcw, Ban, Ticket, Shield, CreditCard, Wallet, Newspaper
+  XCircle, Loader2, LayoutGrid, Zap, Database, Bell, BellOff, Volume2, VolumeX, TrendingUp, DollarSign, Users, MessageCircle, Link, RotateCcw, Ban, Ticket, Shield, CreditCard, Wallet, Newspaper, ShoppingCart
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import useOrderNotification from '@/hooks/useOrderNotification';
@@ -49,6 +49,7 @@ interface ProductOption {
   estimated_time: string | null;
   is_active: boolean;
   purchase_limit: number | null;
+  max_quantity_per_order: number | null;
 }
 
 interface Token {
@@ -721,7 +722,7 @@ const Admin = () => {
 
   // Form states
   const [productForm, setProductForm] = useState({ name: '', price: 0, duration: '', available: 0, instant_delivery: false });
-  const [optionForm, setOptionForm] = useState({ name: '', type: 'email_password', description: '', estimated_time: '', price: 0, duration: '', delivery_type: 'manual', is_active: true, purchase_limit: 0 });
+  const [optionForm, setOptionForm] = useState({ name: '', type: 'email_password', description: '', estimated_time: '', price: 0, duration: '', delivery_type: 'manual', is_active: true, purchase_limit: 0, max_quantity_per_order: 0 });
   const [tokenForm, setTokenForm] = useState({ token: '', balance: 0 });
 
   // New options to add with product
@@ -1133,11 +1134,12 @@ const Admin = () => {
         duration: option.duration || '',
         delivery_type: isAuto ? 'auto' : 'manual',
         is_active: option.is_active !== false,
-        purchase_limit: option.purchase_limit || 0
+        purchase_limit: option.purchase_limit || 0,
+        max_quantity_per_order: option.max_quantity_per_order || 0
       });
     } else {
       setEditingOption(null);
-      setOptionForm({ name: '', type: 'email_password', description: '', estimated_time: '', price: 0, duration: '', delivery_type: 'manual', is_active: true, purchase_limit: 0 });
+      setOptionForm({ name: '', type: 'email_password', description: '', estimated_time: '', price: 0, duration: '', delivery_type: 'manual', is_active: true, purchase_limit: 0, max_quantity_per_order: 0 });
     }
     setShowOptionModal(true);
   };
@@ -1161,7 +1163,8 @@ const Admin = () => {
           price: optionForm.price || 0,
           duration: optionForm.duration || null,
           is_active: optionForm.is_active,
-          purchase_limit: optionForm.purchase_limit > 0 ? optionForm.purchase_limit : null
+          purchase_limit: optionForm.purchase_limit > 0 ? optionForm.purchase_limit : null,
+          max_quantity_per_order: optionForm.max_quantity_per_order > 0 ? optionForm.max_quantity_per_order : null
         })
         .eq('id', editingOption.id);
 
@@ -1180,7 +1183,8 @@ const Admin = () => {
         price: optionForm.price || 0,
         duration: optionForm.duration || null,
         is_active: optionForm.is_active,
-        purchase_limit: optionForm.purchase_limit > 0 ? optionForm.purchase_limit : null
+        purchase_limit: optionForm.purchase_limit > 0 ? optionForm.purchase_limit : null,
+        max_quantity_per_order: optionForm.max_quantity_per_order > 0 ? optionForm.max_quantity_per_order : null
       });
 
       if (error) {
@@ -2301,7 +2305,31 @@ const Admin = () => {
                 />
               </div>
 
-              {/* Description */}
+              {/* Max Quantity Per Order - Only for auto delivery */}
+              {optionForm.delivery_type === 'auto' && (
+                <div className="p-3 bg-info/5 rounded-lg border border-info/20">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <label className="text-sm font-medium text-foreground flex items-center gap-2">
+                        <ShoppingCart className="w-4 h-4 text-info" />
+                        الحد الأقصى للكمية في العملية الواحدة
+                      </label>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        حدد أقصى كمية يمكن للعميل شراءها في عملية واحدة (0 = بدون حد)
+                      </p>
+                    </div>
+                  </div>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="0 = بدون حد"
+                    value={optionForm.max_quantity_per_order}
+                    onChange={(e) => setOptionForm({ ...optionForm, max_quantity_per_order: parseInt(e.target.value) || 0 })}
+                    className="input-field w-full mt-2"
+                  />
+                </div>
+              )}
+
               <div>
                 <label className="text-sm font-medium text-muted-foreground mb-2 block">الوصف (اختياري)</label>
                 <input
