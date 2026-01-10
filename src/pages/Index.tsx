@@ -1667,144 +1667,140 @@ const Index = () => {
                       </div>
 
 
-                      {/* Recharge Requests History */}
-                      {tokenRecharges.length > 0 && (
-                        <div className="border-t border-border pt-4">
-                          <h3 className="text-sm font-bold mb-3 flex items-center gap-2">
-                            <CreditCard className="w-4 h-4" />
-                            طلبات الشحن ({tokenRecharges.length})
-                          </h3>
-                          <div className="space-y-2 max-h-48 overflow-y-auto">
-                            {tokenRecharges.map((recharge) => {
-                              const statusInfo = getStatusInfo(recharge.status);
-                              const StatusIcon = statusInfo.icon;
-                              return (
-                                <div key={recharge.id} className="bg-muted/30 rounded-lg p-3 border border-border">
-                                  <div className="flex items-start justify-between gap-2">
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-center gap-2 mb-1">
-                                        <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium">
-                                          شحن رصيد
-                                        </span>
-                                      </div>
-                                      <p className="font-medium text-sm">
-                                        {recharge.payment_method}
-                                      </p>
-                                      <p className="text-xs text-muted-foreground mt-1">
-                                        {new Date(recharge.created_at).toLocaleDateString('ar-EG')} - {new Date(recharge.created_at).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
-                                      </p>
-                                    </div>
-                                    <div className="text-left">
-                                      <span className="font-bold text-green-600 text-sm">+${recharge.amount}</span>
-                                      <div className={`flex items-center gap-1 mt-1 ${statusInfo.color}`}>
-                                        <StatusIcon className={`w-3 h-3 ${recharge.status === 'pending' ? 'animate-pulse' : ''}`} />
-                                        <span className="text-xs font-medium">{statusInfo.label}</span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                  {recharge.admin_notes && (
-                                    <p className="text-xs text-muted-foreground mt-2 p-2 bg-background rounded border">
-                                      {recharge.admin_notes}
-                                    </p>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Orders History */}
+                      {/* Combined Transaction History - Orders + Recharges */}
                       <div className="border-t border-border pt-4">
                         <h3 className="text-sm font-bold mb-3 flex items-center gap-2">
                           <ShoppingCart className="w-4 h-4" />
-                          سجل الطلبات ({tokenOrders.length})
+                          سجل المعاملات ({tokenOrders.length + tokenRecharges.length})
                         </h3>
 
-                        {tokenOrders.length === 0 ? (
+                        {tokenOrders.length === 0 && tokenRecharges.length === 0 ? (
                           <div className="text-center py-6 bg-muted/30 rounded-lg">
                             <ShoppingCart className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
-                            <p className="text-sm text-muted-foreground">لا توجد طلبات سابقة</p>
+                            <p className="text-sm text-muted-foreground">لا توجد معاملات سابقة</p>
                           </div>
                         ) : (
-                          <div className="space-y-2 max-h-64 overflow-y-auto">
-                            {tokenOrders.map((order) => {
-                              const statusInfo = getStatusInfo(order.status);
-                              const StatusIcon = statusInfo.icon;
-                              // Find refund request for this order
-                              const refund = tokenRefunds.find(r => r.order_number === order.order_number);
-                              const getRefundStatusInfo = (status: string) => {
-                                switch (status) {
-                                  case 'approved':
-                                    return { label: 'تم الاسترداد', icon: CheckCircle2, color: 'text-green-600', bg: 'bg-green-100' };
-                                  case 'rejected':
-                                    return { label: 'مرفوض', icon: XCircle, color: 'text-red-600', bg: 'bg-red-100' };
-                                  case 'pending':
-                                  default:
-                                    return { label: 'قيد المراجعة', icon: Clock, color: 'text-yellow-600', bg: 'bg-yellow-100' };
-                                }
-                              };
-                              return (
-                                <div key={order.id} className="bg-muted/30 rounded-lg p-3 border border-border">
-                                  <div className="flex items-start justify-between gap-2">
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-center gap-2 mb-1">
-                                        <span className="font-mono text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded font-bold">
-                                          #{order.order_number}
-                                        </span>
-                                      </div>
-                                      <p className="font-medium text-sm truncate">
-                                        {getProductName(order.product_id, order.product_option_id)}
-                                      </p>
-                                      <p className="text-xs text-muted-foreground mt-1">
-                                        {new Date(order.created_at).toLocaleDateString('ar-EG')} - {new Date(order.created_at).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
-                                      </p>
-                                    </div>
-                                    <div className="text-left">
-                                      <span className="font-bold text-primary text-sm">${order.amount}</span>
-                                      <div className={`flex items-center gap-1 mt-1 ${statusInfo.color}`}>
-                                        <StatusIcon className={`w-3 h-3 ${order.status === 'in_progress' ? 'animate-spin' : ''}`} />
-                                        <span className="text-xs font-medium">{statusInfo.label}</span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                  {order.response_message && (
-                                    <p className="text-xs text-muted-foreground mt-2 p-2 bg-background rounded border">
-                                      {order.response_message}
-                                    </p>
-                                  )}
-                                  {/* Refund Request Status */}
-                                  {refund && (
-                                    <div className="mt-2 p-2 rounded-lg border border-orange-200 bg-orange-50">
-                                      <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                          <RotateCcw className="w-3 h-3 text-orange-600" />
-                                          <span className="text-xs font-medium text-orange-800">طلب استرداد</span>
+                          <div className="space-y-2 max-h-72 overflow-y-auto">
+                            {/* Combine and sort by date */}
+                            {[
+                              ...tokenOrders.map(order => ({ type: 'order' as const, data: order, date: new Date(order.created_at) })),
+                              ...tokenRecharges.map(recharge => ({ type: 'recharge' as const, data: recharge, date: new Date(recharge.created_at) }))
+                            ]
+                              .sort((a, b) => b.date.getTime() - a.date.getTime())
+                              .map((item) => {
+                                if (item.type === 'recharge') {
+                                  const recharge = item.data as RechargeRequest;
+                                  const statusInfo = getStatusInfo(recharge.status);
+                                  const StatusIcon = statusInfo.icon;
+                                  return (
+                                    <div key={`recharge-${recharge.id}`} className="bg-blue-50/50 rounded-lg p-3 border border-blue-200/50">
+                                      <div className="flex items-start justify-between gap-2">
+                                        <div className="flex-1 min-w-0">
+                                          <div className="flex items-center gap-2 mb-1">
+                                            <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium flex items-center gap-1">
+                                              <CreditCard className="w-3 h-3" />
+                                              شحن رصيد
+                                            </span>
+                                          </div>
+                                          <p className="font-medium text-sm">
+                                            {recharge.payment_method}
+                                          </p>
+                                          <p className="text-xs text-muted-foreground mt-1">
+                                            {new Date(recharge.created_at).toLocaleDateString('ar-EG')} - {new Date(recharge.created_at).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
+                                          </p>
                                         </div>
-                                        {(() => {
-                                          const refundInfo = getRefundStatusInfo(refund.status);
-                                          const RefundIcon = refundInfo.icon;
-                                          return (
-                                            <div className={`flex items-center gap-1 ${refundInfo.color}`}>
-                                              <RefundIcon className="w-3 h-3" />
-                                              <span className="text-xs font-medium">{refundInfo.label}</span>
-                                            </div>
-                                          );
-                                        })()}
+                                        <div className="text-left">
+                                          <span className="font-bold text-green-600 text-sm">+${recharge.amount}</span>
+                                          <div className={`flex items-center gap-1 mt-1 ${statusInfo.color}`}>
+                                            <StatusIcon className={`w-3 h-3 ${recharge.status === 'pending' ? 'animate-pulse' : ''}`} />
+                                            <span className="text-xs font-medium">{statusInfo.label}</span>
+                                          </div>
+                                        </div>
                                       </div>
-                                      {refund.reason && (
-                                        <p className="text-xs text-orange-700 mt-1">السبب: {refund.reason}</p>
-                                      )}
-                                      {refund.admin_notes && (
-                                        <p className="text-xs text-muted-foreground mt-1 p-1.5 bg-background rounded border">
-                                          ملاحظة الإدارة: {refund.admin_notes}
+                                      {recharge.admin_notes && (
+                                        <p className="text-xs text-muted-foreground mt-2 p-2 bg-background rounded border">
+                                          {recharge.admin_notes}
                                         </p>
                                       )}
                                     </div>
-                                  )}
-                                </div>
-                              );
-                            })}
+                                  );
+                                } else {
+                                  const order = item.data as Order;
+                                  const statusInfo = getStatusInfo(order.status);
+                                  const StatusIcon = statusInfo.icon;
+                                  const refund = tokenRefunds.find(r => r.order_number === order.order_number);
+                                  const getRefundStatusInfo = (status: string) => {
+                                    switch (status) {
+                                      case 'approved':
+                                        return { label: 'تم الاسترداد', icon: CheckCircle2, color: 'text-green-600', bg: 'bg-green-100' };
+                                      case 'rejected':
+                                        return { label: 'مرفوض', icon: XCircle, color: 'text-red-600', bg: 'bg-red-100' };
+                                      case 'pending':
+                                      default:
+                                        return { label: 'قيد المراجعة', icon: Clock, color: 'text-yellow-600', bg: 'bg-yellow-100' };
+                                    }
+                                  };
+                                  return (
+                                    <div key={`order-${order.id}`} className="bg-muted/30 rounded-lg p-3 border border-border">
+                                      <div className="flex items-start justify-between gap-2">
+                                        <div className="flex-1 min-w-0">
+                                          <div className="flex items-center gap-2 mb-1">
+                                            <span className="font-mono text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded font-bold">
+                                              #{order.order_number}
+                                            </span>
+                                          </div>
+                                          <p className="font-medium text-sm truncate">
+                                            {getProductName(order.product_id, order.product_option_id)}
+                                          </p>
+                                          <p className="text-xs text-muted-foreground mt-1">
+                                            {new Date(order.created_at).toLocaleDateString('ar-EG')} - {new Date(order.created_at).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
+                                          </p>
+                                        </div>
+                                        <div className="text-left">
+                                          <span className="font-bold text-primary text-sm">${order.amount}</span>
+                                          <div className={`flex items-center gap-1 mt-1 ${statusInfo.color}`}>
+                                            <StatusIcon className={`w-3 h-3 ${order.status === 'in_progress' ? 'animate-spin' : ''}`} />
+                                            <span className="text-xs font-medium">{statusInfo.label}</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                      {order.response_message && (
+                                        <p className="text-xs text-muted-foreground mt-2 p-2 bg-background rounded border">
+                                          {order.response_message}
+                                        </p>
+                                      )}
+                                      {refund && (
+                                        <div className="mt-2 p-2 rounded-lg border border-orange-200 bg-orange-50">
+                                          <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                              <RotateCcw className="w-3 h-3 text-orange-600" />
+                                              <span className="text-xs font-medium text-orange-800">طلب استرداد</span>
+                                            </div>
+                                            {(() => {
+                                              const refundInfo = getRefundStatusInfo(refund.status);
+                                              const RefundIcon = refundInfo.icon;
+                                              return (
+                                                <div className={`flex items-center gap-1 ${refundInfo.color}`}>
+                                                  <RefundIcon className="w-3 h-3" />
+                                                  <span className="text-xs font-medium">{refundInfo.label}</span>
+                                                </div>
+                                              );
+                                            })()}
+                                          </div>
+                                          {refund.reason && (
+                                            <p className="text-xs text-orange-700 mt-1">السبب: {refund.reason}</p>
+                                          )}
+                                          {refund.admin_notes && (
+                                            <p className="text-xs text-muted-foreground mt-1 p-1.5 bg-background rounded border">
+                                              ملاحظة الإدارة: {refund.admin_notes}
+                                            </p>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                }
+                              })}
                           </div>
                         )}
                       </div>
