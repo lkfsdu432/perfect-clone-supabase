@@ -750,7 +750,7 @@ const Admin = () => {
   const [tokenSearch, setTokenSearch] = useState<string>('');
 
   // Use order notification hook
-  const { newOrdersCount, clearNotifications } = useOrderNotification();
+  const { newOrdersCount, clearNotifications, soundEnabled, toggleSound } = useOrderNotification();
 
   // Handle new order notifications
   useEffect(() => {
@@ -1503,16 +1503,19 @@ const Admin = () => {
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setNotificationsEnabled(!notificationsEnabled)}
+                onClick={() => {
+                  toggleSound();
+                  setNotificationsEnabled(!notificationsEnabled);
+                }}
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
-                  notificationsEnabled
+                  soundEnabled
                     ? 'bg-success/10 text-success hover:bg-success/20'
                     : 'bg-muted text-muted-foreground hover:bg-muted/80'
                 }`}
-                title={notificationsEnabled ? 'إيقاف الإشعارات' : 'تفعيل الإشعارات'}
+                title={soundEnabled ? 'إيقاف صوت الإشعارات' : 'تفعيل صوت الإشعارات'}
               >
-                {notificationsEnabled ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
-                <span className="hidden sm:inline">{notificationsEnabled ? 'الإشعارات' : 'صامت'}</span>
+                {soundEnabled ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
+                <span className="hidden sm:inline">{soundEnabled ? 'الصوت مفعل 🔔' : 'الصوت مغلق'}</span>
               </button>
               <button
                 onClick={async () => {
