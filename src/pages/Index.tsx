@@ -1848,6 +1848,14 @@ const Index = () => {
                                         </div>
                                       </div>
                                     </div>
+                                                                          {order.response_message && (
+                                      <div className="mt-2 p-2 bg-success/10 rounded-lg border border-success/20">
+                                        <p className="text-xs font-medium text-success mb-1">المنتجات المستلمة:</p>
+                                        <pre className="text-xs text-foreground whitespace-pre-wrap font-mono bg-background p-2 rounded">
+                                          {order.response_message}
+                                        </pre>
+                                      </div>
+                                    )}
                                       {refund && (
                                         <div className="mt-2 p-2 rounded-lg border border-orange-200 bg-orange-50">
                                           <div className="flex items-center justify-between">
