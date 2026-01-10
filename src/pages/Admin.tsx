@@ -165,7 +165,7 @@ const OrderCard = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-sm font-medium text-foreground">
             <Package className="w-4 h-4 text-primary" />
-            <span>{getProductName()}</span>
+            <span>   {getProductName()}   {order.quantity && (     <span className="text-primary mr-2 font-bold">(x{order.quantity})</span>   )} </span>
           </div>
           <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-lg font-mono">
             طلب #{order.order_number}
