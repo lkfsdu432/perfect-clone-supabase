@@ -1518,11 +1518,17 @@ const Admin = () => {
               <button
                 onClick={async () => {
                   if (!soundEnabled) {
-                    await toggleSound();
-                    toast({ title: 'تم تفعيل الصوت', description: 'لو وصل طلب جديد هتسمع إشعار.' });
+                    const result = await toggleSound();
+                    toast({
+                      title: "تم تفعيل الصوت",
+                      description:
+                        result === "mp3"
+                          ? "تم تشغيل اختبار الصوت. عند وصول طلب جديد هتسمع إشعار."
+                          : "تم تفعيل الصوت، لكن ملف MP3 لم يعمل—هنستخدم تنبيه بديل.",
+                    });
                   } else {
                     await toggleSound();
-                    toast({ title: 'تم إيقاف الصوت' });
+                    toast({ title: "تم إيقاف الصوت" });
                   }
                 }}
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
@@ -1538,7 +1544,14 @@ const Admin = () => {
 
               <button
                 onClick={async () => {
-                  await testSound();
+                  const result = await testSound();
+                  toast({
+                    title: "اختبار الصوت",
+                    description:
+                      result === "mp3"
+                        ? "تم تشغيل ملف الإشعار بنجاح."
+                        : "ملف MP3 لم يعمل، فتم تشغيل تنبيه بديل (Beep).",
+                  });
                 }}
                 className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted text-muted-foreground hover:bg-muted/80 transition-colors"
                 title="اختبار الصوت"

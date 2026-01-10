@@ -62,9 +62,11 @@ const useOrderNotification = () => {
     }
   }, []);
 
-  const testSound = useCallback(async () => {
+  const testSound = useCallback(async (): Promise<"mp3" | "beep"> => {
     const ok = await tryPlayMp3();
-    if (!ok) playBeepFallback();
+    if (ok) return "mp3";
+    playBeepFallback();
+    return "beep";
   }, [tryPlayMp3, playBeepFallback]);
 
   // Must be called from a user click
@@ -80,10 +82,12 @@ const useOrderNotification = () => {
   const toggleSound = useCallback(async () => {
     if (soundEnabled) {
       disableSound();
-    } else {
-      await enableSound();
+      return "beep" as const;
     }
-  }, [soundEnabled, enableSound, disableSound]);
+    await enableSound();
+    // enableSound already runs testSound; run one more quick test result for UI
+    return await testSound();
+  }, [soundEnabled, enableSound, disableSound, testSound]);
 
   const playNotificationSound = useCallback(() => {
     if (!soundEnabled) return;
