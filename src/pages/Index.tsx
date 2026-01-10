@@ -109,7 +109,7 @@ const Index = () => {
     const checkActiveOrder = async () => {
       const stored = localStorage.getItem(ACTIVE_ORDER_KEY);
       if (stored) {
-        const { orderId, tokenValue } = JSON.parse(stored);
+        const { orderId, tokenValue, productId, optionId } = JSON.parse(stored);
 
         // Fetch order status from database
         const { data: orderData } = await supabase
@@ -126,12 +126,22 @@ const Index = () => {
               amount: orderData.amount || orderData.total_price
             });
             setToken(tokenValue);
+            
+            // استعادة المنتج والخيار المحددين
+            if (orderData.product_id) {
+              setSelectedProductId(orderData.product_id);
+            }
+            if (orderData.product_option_id) {
+              setSelectedOptionId(orderData.product_option_id);
+            }
 
             // Fetch token data
             const tokenDataResult = await verifyToken(tokenValue);
             if (tokenDataResult) {
               setTokenData(tokenDataResult);
               setTokenBalance(Number(tokenDataResult.balance));
+              // الانتقال إلى صفحة التفاصيل لعرض الطلب النشط
+              setStep('details');
             }
           } else {
             // Order is completed or rejected, clear storage
