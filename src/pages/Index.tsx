@@ -13,6 +13,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import OrderChat from '@/components/OrderChat';
 import useDeviceFingerprint from '@/hooks/useDeviceFingerprint';
+import useDevToolsProtection from '@/hooks/useDevToolsProtection';
 
 interface Product {
   id: string;
@@ -83,6 +84,9 @@ interface RefundRequest {
 const ACTIVE_ORDER_KEY = 'active_order';
 
 const Index = () => {
+  // Enable DevTools protection
+  useDevToolsProtection();
+  
   const [products, setProducts] = useState<Product[]>([]);
   const [productOptions, setProductOptions] = useState<ProductOption[]>([]);
   const [selectedProductId, setSelectedProductId] = useState('');
