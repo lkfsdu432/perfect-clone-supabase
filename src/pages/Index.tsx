@@ -625,16 +625,24 @@ const Index = () => {
 
       const refundAmount = Number(orderRow.amount ?? orderRow.total_price ?? activeOrder.amount ?? 0);
 
-      // Update order status to cancelled (وتأكيدها من الداتابيز)
-      const { data: updatedOrder, error: orderError } = await supabase
+      // Update order status to cancelled
+      const { error: orderError } = await supabase
         .from('orders')
         .update({ status: 'cancelled' })
-        .eq('id', activeOrder.id)
-        .select('id, status')
-        .maybeSingle();
+        .eq('id', activeOrder.id);
 
       if (orderError) throw orderError;
-      if (!updatedOrder || updatedOrder.status !== 'cancelled') {
+
+      // تأكيد من الداتابيز (بعض السياسات قد تمنع RETURNING في update)
+      await new Promise((r) => setTimeout(r, 150));
+      const { data: confirmedOrder, error: confirmError } = await supabase
+        .from('orders')
+        .select('status')
+        .eq('id', activeOrder.id)
+        .maybeSingle();
+
+      if (confirmError) throw confirmError;
+      if (!confirmedOrder || confirmedOrder.status !== 'cancelled') {
         throw new Error('ORDER_CANCEL_NOT_CONFIRMED');
       }
 
@@ -697,9 +705,17 @@ const Index = () => {
       });
     } catch (error) {
       console.error('Error cancelling order:', error);
+      const msg =
+        (typeof error === 'object' && error !== null && 'message' in error)
+          ? String((error as any).message)
+          : 'UNKNOWN_ERROR';
+
       toast({
         title: 'خطأ',
-        description: 'فشل في إلغاء الطلب أو استرداد المبلغ',
+        description:
+          msg === 'ORDER_CANCEL_NOT_CONFIRMED'
+            ? 'تم إرسال طلب الإلغاء لكن لم يتم تأكيد الحالة بعد—جرّب مرة أخرى بعد ثواني.'
+            : `فشل في إلغاء الطلب أو استرداد المبلغ: ${msg}`,
         variant: 'destructive',
       });
     } finally {
