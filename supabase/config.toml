@@ -1,0 +1,2 @@
+[functions.cancel-order]
+verify_jwt = false
