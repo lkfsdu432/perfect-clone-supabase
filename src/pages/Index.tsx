@@ -176,21 +176,16 @@ const Index = () => {
           const updated = payload.new as ActiveOrder;
 
           if (updated.status === 'completed' || updated.status === 'rejected') {
-            // Refund if rejected - fetch current balance from DB first
-            if (updated.status === 'rejected' && tokenData) {
+            // لا نقوم بردّ الرصيد من هنا لتفادي التكرار (الرد يتم من لوحة الأدمن)
+            if ((updated.status === 'rejected') && tokenData) {
               const { data: currentToken } = await supabase
                 .from('tokens')
                 .select('balance')
                 .eq('id', tokenData.id)
-                .single();
-              
+                .maybeSingle();
+
               if (currentToken) {
-                const newBalance = Number(currentToken.balance) + Number(updated.amount);
-                await supabase
-                  .from('tokens')
-                  .update({ balance: newBalance })
-                  .eq('id', tokenData.id);
-                setTokenBalance(newBalance);
+                setTokenBalance(Number(currentToken.balance));
               }
             }
 
@@ -201,11 +196,29 @@ const Index = () => {
             setResult(updated.status === 'completed' ? 'success' : 'error');
             setStep('result');
           } else if (updated.status === 'cancelled') {
-            // Order cancelled (by customer/admin) - clear it locally
+            // Order cancelled (by customer/admin)
             localStorage.removeItem(ACTIVE_ORDER_KEY);
             setActiveOrder(null);
             setCurrentOrderId(null);
             setOrderStatus('pending');
+            setResponseMessage(null);
+            setResult(null);
+            setStep('initial');
+
+            // تحديث الرصيد من قاعدة البيانات (في حالة تم ردّ المبلغ من الأدمن)
+            if (tokenData) {
+              const { data: currentToken } = await supabase
+                .from('tokens')
+                .select('balance')
+                .eq('id', tokenData.id)
+                .maybeSingle();
+
+              if (currentToken) {
+                setTokenBalance(Number(currentToken.balance));
+              }
+            }
+
+            toast({ title: 'تم إلغاء الطلب', description: 'تم إلغاء الطلب' });
           } else {
             setActiveOrder(updated);
           }
@@ -579,20 +592,39 @@ const Index = () => {
   // Cancel order function
   const handleCancelOrder = async () => {
     if (!activeOrder || !tokenData) return;
-    
-    // Only allow cancellation if order is pending
-    if (activeOrder.status !== 'pending') {
-      toast({
-        title: 'لا يمكن الإلغاء',
-        description: 'لا يمكن إلغاء طلب قيد التنفيذ',
-        variant: 'destructive',
-      });
-      return;
-    }
 
     setIsLoading(true);
 
     try {
+      // تأكيد حالة الطلب من قاعدة البيانات (عشان مايبقاش فيه حالة قديمة)
+      const { data: orderRow, error: orderFetchError } = await supabase
+        .from('orders')
+        .select('status, amount, total_price')
+        .eq('id', activeOrder.id)
+        .maybeSingle();
+
+      if (orderFetchError) throw orderFetchError;
+
+      if (!orderRow) {
+        localStorage.removeItem(ACTIVE_ORDER_KEY);
+        setActiveOrder(null);
+        setCurrentOrderId(null);
+        setStep('initial');
+        toast({ title: 'تنبيه', description: 'الطلب غير موجود' });
+        return;
+      }
+
+      if (orderRow.status !== 'pending') {
+        toast({
+          title: 'لا يمكن الإلغاء',
+          description: orderRow.status === 'cancelled' ? 'تم إلغاء الطلب بالفعل' : 'لا يمكن إلغاء طلب قيد التنفيذ',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const refundAmount = Number(orderRow.amount ?? orderRow.total_price ?? activeOrder.amount ?? 0);
+
       // Update order status to cancelled
       const { error: orderError } = await supabase
         .from('orders')
@@ -601,8 +633,17 @@ const Index = () => {
 
       if (orderError) throw orderError;
 
-      // Refund amount to token balance
-      const newBalance = tokenBalance! + activeOrder.amount;
+      // Fetch latest balance then refund (لتفادي أي تعارض)
+      const { data: currentToken, error: tokenFetchError } = await supabase
+        .from('tokens')
+        .select('balance')
+        .eq('id', tokenData.id)
+        .maybeSingle();
+
+      if (tokenFetchError) throw tokenFetchError;
+      if (!currentToken) throw new Error('TOKEN_NOT_FOUND');
+
+      const newBalance = Number(currentToken.balance) + refundAmount;
       const { error: tokenError } = await supabase
         .from('tokens')
         .update({ balance: newBalance })
@@ -610,26 +651,39 @@ const Index = () => {
 
       if (tokenError) throw tokenError;
 
+      // Refresh orders list (عشان الحالة تظهر فوراً صح)
+      const { data: ordersData } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('token_id', tokenData.id)
+        .order('created_at', { ascending: false });
+
+      setTokenOrders(
+        (ordersData || []).map((o: any) => ({
+          ...o,
+          amount: o.amount || o.total_price,
+        }))
+      );
+
       // Update local state
       setTokenBalance(newBalance);
-      setTokenOrders(prev => prev.map(o => (o.id === activeOrder.id ? { ...o, status: 'cancelled' } : o)));
       localStorage.removeItem(ACTIVE_ORDER_KEY);
       setActiveOrder(null);
       setCurrentOrderId(null);
       setOrderStatus('pending');
       setResponseMessage(null);
-      setStep('initial'); // Reset to initial step to allow new order
+      setResult(null);
+      setStep('initial');
 
       toast({
         title: 'تم إلغاء الطلب',
-        description: `تم إرجاع $${activeOrder.amount.toFixed(2)} إلى رصيدك`,
+        description: `تم إرجاع $${refundAmount.toFixed(2)} إلى رصيدك`,
       });
-
     } catch (error) {
       console.error('Error cancelling order:', error);
       toast({
         title: 'خطأ',
-        description: 'فشل في إلغاء الطلب',
+        description: 'فشل في إلغاء الطلب أو استرداد المبلغ',
         variant: 'destructive',
       });
     } finally {
@@ -656,26 +710,42 @@ const Index = () => {
           setOrderStatus(updatedOrder.status);
           setResponseMessage(updatedOrder.response_message);
 
+          if (updatedOrder.status === 'cancelled') {
+            // لو الطلب اتلغى (من العميل أو الأدمن)
+            localStorage.removeItem(ACTIVE_ORDER_KEY);
+            setActiveOrder(null);
+            setCurrentOrderId(null);
+            setOrderStatus('pending');
+            setResponseMessage(null);
+            setResult(null);
+            setStep('initial');
+
+            // تحديث الرصيد من قاعدة البيانات
+            if (tokenData) {
+              const { data: currentToken } = await supabase
+                .from('tokens')
+                .select('balance')
+                .eq('id', tokenData.id)
+                .maybeSingle();
+              if (currentToken) setTokenBalance(Number(currentToken.balance));
+            }
+
+            toast({ title: 'تم إلغاء الطلب', description: 'تم إلغاء الطلب' });
+            return;
+          }
+
           // Only show result for completed or rejected status
           if (updatedOrder.status === 'completed' || updatedOrder.status === 'rejected') {
-            // Refund the amount if rejected - fetch current balance from DB first
+            // لا نقوم بردّ الرصيد من هنا لتفادي التكرار (الرد يتم من لوحة الأدمن)
             if (updatedOrder.status === 'rejected' && tokenData) {
               const { data: currentToken } = await supabase
                 .from('tokens')
                 .select('balance')
                 .eq('id', tokenData.id)
-                .single();
-              
+                .maybeSingle();
+
               if (currentToken) {
-                const refundAmount = Number(updatedOrder.amount);
-                const newBalance = Number(currentToken.balance) + refundAmount;
-
-                await supabase
-                  .from('tokens')
-                  .update({ balance: newBalance })
-                  .eq('id', tokenData.id);
-
-                setTokenBalance(newBalance);
+                setTokenBalance(Number(currentToken.balance));
               }
             }
 
