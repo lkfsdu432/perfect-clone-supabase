@@ -1,14 +1,94 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
-const POLL_INTERVAL_MS = 6000;
+const POLL_INTERVAL_MS = 5000;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Sound generators – distinct melodies for each event type
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Order notification – ascending 3‑note chime (ding-ding-DING) */
+const playOrderSound = () => {
+  try {
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const play = (freq: number, start: number, dur: number, vol = 0.22) => {
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = "triangle";
+      osc.frequency.value = freq;
+      g.gain.setValueAtTime(0, start);
+      g.gain.linearRampToValueAtTime(vol, start + 0.015);
+      g.gain.exponentialRampToValueAtTime(0.001, start + dur);
+      osc.connect(g);
+      g.connect(ctx.destination);
+      osc.start(start);
+      osc.stop(start + dur);
+    };
+    const t = ctx.currentTime;
+    play(659.25, t, 0.12);       // E5
+    play(783.99, t + 0.11, 0.12); // G5
+    play(987.77, t + 0.22, 0.18); // B5
+    setTimeout(() => ctx.close().catch(() => {}), 600);
+  } catch (e) {
+    console.log("Order sound failed", e);
+  }
+};
+
+/** Recharge notification – two‑tone cash register "ka-ching" */
+const playRechargeSound = () => {
+  try {
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const play = (freq: number, start: number, dur: number, vol = 0.25) => {
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      g.gain.setValueAtTime(0, start);
+      g.gain.linearRampToValueAtTime(vol, start + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.001, start + dur);
+      osc.connect(g);
+      g.connect(ctx.destination);
+      osc.start(start);
+      osc.stop(start + dur);
+    };
+    const t = ctx.currentTime;
+    play(1318.5, t, 0.08);         // E6
+    play(1760.0, t + 0.07, 0.14);  // A6
+    setTimeout(() => ctx.close().catch(() => {}), 400);
+  } catch (e) {
+    console.log("Recharge sound failed", e);
+  }
+};
+
+/** Message notification – short single "pop" */
+export const playChatSound = () => {
+  try {
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.value = 1200;
+    g.gain.setValueAtTime(0.18, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+    osc.connect(g);
+    g.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.12);
+    setTimeout(() => ctx.close().catch(() => {}), 200);
+  } catch (e) {
+    console.log("Chat sound failed", e);
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Hook
+// ═══════════════════════════════════════════════════════════════════════════
 
 const useOrderNotification = () => {
   const [newOrdersCount, setNewOrdersCount] = useState(0);
   const [soundEnabled, setSoundEnabled] = useState(false);
 
   const soundEnabledRef = useRef(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const lastOrderIdRef = useRef<string | number | null>(null);
   const lastRechargeIdRef = useRef<string | number | null>(null);
@@ -19,165 +99,94 @@ const useOrderNotification = () => {
     soundEnabledRef.current = soundEnabled;
   }, [soundEnabled]);
 
-  // Prepare mp3 audio
-  useEffect(() => {
-    const audio = new Audio("/notification.mp3");
-    audio.preload = "auto";
-    audio.volume = 1;
-    audioRef.current = audio;
-    try {
-      audio.load();
-    } catch {
-      // ignore
-    }
+  // ─────────────────────────────────────────────────────────────────────────
+  // Play helpers
+  // ─────────────────────────────────────────────────────────────────────────
+
+  const playOrder = useCallback(() => {
+    if (soundEnabledRef.current) playOrderSound();
   }, []);
 
-  const playBeepFallback = useCallback(() => {
-    try {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      const ctx = new AudioCtx();
-
-      const playTone = (freq: number, start: number, dur: number) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-
-        osc.type = "sine";
-        osc.frequency.value = freq;
-        gain.gain.setValueAtTime(0.0001, start);
-        gain.gain.exponentialRampToValueAtTime(0.18, start + 0.01);
-        gain.gain.exponentialRampToValueAtTime(0.0001, start + dur);
-
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-
-        osc.start(start);
-        osc.stop(start + dur);
-      };
-
-      const now = ctx.currentTime;
-      playTone(880, now, 0.12);
-      playTone(660, now + 0.12, 0.18);
-
-      // cleanup
-      setTimeout(() => {
-        ctx.close().catch(() => {});
-      }, 600);
-
-      return true;
-    } catch (err) {
-      console.log("Beep fallback failed:", err);
-      return false;
-    }
+  const playRecharge = useCallback(() => {
+    if (soundEnabledRef.current) playRechargeSound();
   }, []);
 
-  const tryPlayMp3 = useCallback(async () => {
-    const audio = audioRef.current;
-    if (!audio) return false;
+  // ─────────────────────────────────────────────────────────────────────────
+  // Enable / disable
+  // ─────────────────────────────────────────────────────────────────────────
 
-    try {
-      audio.currentTime = 0;
-      await audio.play();
-      return true;
-    } catch (err) {
-      console.log("Could not play notification mp3:", err);
-      return false;
-    }
-  }, []);
-
-  const playNotificationSound = useCallback(async () => {
-    if (!soundEnabledRef.current) return;
-
-    const ok = await tryPlayMp3();
-    if (!ok) playBeepFallback();
-  }, [tryPlayMp3, playBeepFallback]);
-
-  // Must be called from a user click
-  const enableSound = useCallback(async () => {
+  const enableSound = useCallback(() => {
     setSoundEnabled(true);
     soundEnabledRef.current = true;
-
-    // Unlock audio with a user gesture
-    const ok = await tryPlayMp3();
-    if (ok) {
-      const audio = audioRef.current;
-      if (audio) {
-        audio.pause();
-        audio.currentTime = 0;
-      }
-    } else {
-      playBeepFallback();
-    }
-  }, [tryPlayMp3, playBeepFallback]);
+    // play test sound on enable
+    playOrderSound();
+  }, []);
 
   const disableSound = useCallback(() => {
     setSoundEnabled(false);
     soundEnabledRef.current = false;
   }, []);
 
-  const toggleSound = useCallback(async () => {
+  const toggleSound = useCallback(() => {
     if (soundEnabledRef.current) {
       disableSound();
-      return;
+    } else {
+      enableSound();
     }
-    await enableSound();
   }, [enableSound, disableSound]);
 
-  const testSound = useCallback(async () => {
-    // test without requiring notifications to be enabled
-    const ok = await tryPlayMp3();
-    if (ok) {
-      const audio = audioRef.current;
-      if (audio) {
-        audio.pause();
-        audio.currentTime = 0;
-      }
-      return true;
-    }
-    return playBeepFallback();
-  }, [tryPlayMp3, playBeepFallback]);
+  const testSound = useCallback(() => {
+    playOrderSound();
+    setTimeout(() => playRechargeSound(), 500);
+    return true;
+  }, []);
 
-  const notifyOnce = useCallback(
-    async (type: "order" | "recharge", id: string | number | null) => {
+  // ─────────────────────────────────────────────────────────────────────────
+  // Notification logic
+  // ─────────────────────────────────────────────────────────────────────────
+
+  const notifyOrder = useCallback(
+    (id: string | number | null) => {
       if (id === null || id === undefined) return;
-
-      // Deduplicate per-table by id
-      if (type === "order") {
-        if (lastOrderIdRef.current === id) return;
-        lastOrderIdRef.current = id;
-      } else {
-        if (lastRechargeIdRef.current === id) return;
-        lastRechargeIdRef.current = id;
-      }
-
-      setNewOrdersCount((prev) => prev + 1);
-      await playNotificationSound();
+      if (lastOrderIdRef.current === id) return;
+      lastOrderIdRef.current = id;
+      setNewOrdersCount((p) => p + 1);
+      playOrder();
     },
-    [playNotificationSound]
+    [playOrder]
   );
 
+  const notifyRecharge = useCallback(
+    (id: string | number | null) => {
+      if (id === null || id === undefined) return;
+      if (lastRechargeIdRef.current === id) return;
+      lastRechargeIdRef.current = id;
+      setNewOrdersCount((p) => p + 1);
+      playRecharge();
+    },
+    [playRecharge]
+  );
+
+  // ─────────────────────────────────────────────────────────────────────────
   // Realtime subscriptions
+  // ─────────────────────────────────────────────────────────────────────────
+
   useEffect(() => {
     const ordersChannel = supabase
-      .channel("realtime-orders")
+      .channel("rt-orders")
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "orders" },
-        (payload: any) => {
-          const id = payload?.new?.id ?? null;
-          void notifyOnce("order", id);
-        }
+        (payload: any) => notifyOrder(payload?.new?.id ?? null)
       )
       .subscribe();
 
     const rechargeChannel = supabase
-      .channel("realtime-recharge")
+      .channel("rt-recharge")
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "recharge_requests" },
-        (payload: any) => {
-          const id = payload?.new?.id ?? null;
-          void notifyOnce("recharge", id);
-        }
+        (payload: any) => notifyRecharge(payload?.new?.id ?? null)
       )
       .subscribe();
 
@@ -185,127 +194,95 @@ const useOrderNotification = () => {
       supabase.removeChannel(ordersChannel);
       supabase.removeChannel(rechargeChannel);
     };
-  }, [notifyOnce]);
+  }, [notifyOrder, notifyRecharge]);
 
-  // Polling fallback (covers cases where realtime isn't enabled / isn't delivered for some tables)
+  // ─────────────────────────────────────────────────────────────────────────
+  // Polling fallback
+  // ─────────────────────────────────────────────────────────────────────────
+
   useEffect(() => {
     let alive = true;
 
-    const fetchLatestAndCounts = async () => {
+    const fetchSnapshot = async () => {
       const [oLatest, rLatest, oCount, rCount] = await Promise.all([
         supabase
           .from("orders")
-          .select("id, created_at")
+          .select("id")
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle(),
         supabase
           .from("recharge_requests")
-          .select("id, created_at")
+          .select("id")
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle(),
         supabase.from("orders").select("id", { count: "exact", head: true }),
-        supabase
-          .from("recharge_requests")
-          .select("id", { count: "exact", head: true }),
+        supabase.from("recharge_requests").select("id", { count: "exact", head: true }),
       ]);
-
       return {
         latestOrderId: (oLatest.data as any)?.id ?? null,
         latestRechargeId: (rLatest.data as any)?.id ?? null,
         orderCount: oCount.count ?? null,
         rechargeCount: rCount.count ?? null,
-        orderCountError: oCount.error ?? null,
-        rechargeCountError: rCount.error ?? null,
-        latestOrderError: oLatest.error ?? null,
-        latestRechargeError: rLatest.error ?? null,
       };
     };
 
-    const initLastSeen = async () => {
-      const snapshot = await fetchLatestAndCounts();
+    const init = async () => {
+      const s = await fetchSnapshot();
       if (!alive) return;
-
-      lastOrderIdRef.current = snapshot.latestOrderId ?? lastOrderIdRef.current;
-      lastRechargeIdRef.current = snapshot.latestRechargeId ?? lastRechargeIdRef.current;
-
-      if (typeof snapshot.orderCount === "number") {
-        lastOrderCountRef.current = snapshot.orderCount;
-      }
-      if (typeof snapshot.rechargeCount === "number") {
-        lastRechargeCountRef.current = snapshot.rechargeCount;
-      }
+      lastOrderIdRef.current = s.latestOrderId ?? lastOrderIdRef.current;
+      lastRechargeIdRef.current = s.latestRechargeId ?? lastRechargeIdRef.current;
+      if (typeof s.orderCount === "number") lastOrderCountRef.current = s.orderCount;
+      if (typeof s.rechargeCount === "number") lastRechargeCountRef.current = s.rechargeCount;
     };
 
     const poll = async () => {
-      const snapshot = await fetchLatestAndCounts();
+      const s = await fetchSnapshot();
       if (!alive) return;
 
-      // 1) Prefer ID-based detection (avoids duplicates)
-      if (
-        snapshot.latestOrderId !== null &&
-        snapshot.latestOrderId !== lastOrderIdRef.current
-      ) {
-        void notifyOnce("order", snapshot.latestOrderId);
+      // ID‑based check
+      if (s.latestOrderId && s.latestOrderId !== lastOrderIdRef.current) {
+        notifyOrder(s.latestOrderId);
       }
-      if (
-        snapshot.latestRechargeId !== null &&
-        snapshot.latestRechargeId !== lastRechargeIdRef.current
-      ) {
-        void notifyOnce("recharge", snapshot.latestRechargeId);
+      if (s.latestRechargeId && s.latestRechargeId !== lastRechargeIdRef.current) {
+        notifyRecharge(s.latestRechargeId);
       }
 
-      // 2) Count-based fallback detection (covers cases where latest row isn't visible)
-      if (typeof snapshot.orderCount === "number") {
+      // Count‑based fallback
+      if (typeof s.orderCount === "number") {
         const prev = lastOrderCountRef.current;
-        if (typeof prev === "number" && snapshot.orderCount > prev) {
-          // If ID-based didn't fire, still alert
-          if (snapshot.latestOrderId === null || snapshot.latestOrderId === lastOrderIdRef.current) {
+        if (typeof prev === "number" && s.orderCount > prev) {
+          if (!s.latestOrderId || s.latestOrderId === lastOrderIdRef.current) {
             setNewOrdersCount((p) => p + 1);
-            void playNotificationSound();
+            playOrder();
           }
         }
-        lastOrderCountRef.current = snapshot.orderCount;
-      } else if (snapshot.orderCountError) {
-        console.log("Orders count poll error:", snapshot.orderCountError);
+        lastOrderCountRef.current = s.orderCount;
       }
-
-      if (typeof snapshot.rechargeCount === "number") {
+      if (typeof s.rechargeCount === "number") {
         const prev = lastRechargeCountRef.current;
-        if (typeof prev === "number" && snapshot.rechargeCount > prev) {
-          if (snapshot.latestRechargeId === null || snapshot.latestRechargeId === lastRechargeIdRef.current) {
+        if (typeof prev === "number" && s.rechargeCount > prev) {
+          if (!s.latestRechargeId || s.latestRechargeId === lastRechargeIdRef.current) {
             setNewOrdersCount((p) => p + 1);
-            void playNotificationSound();
+            playRecharge();
           }
         }
-        lastRechargeCountRef.current = snapshot.rechargeCount;
-      } else if (snapshot.rechargeCountError) {
-        console.log("Recharge count poll error:", snapshot.rechargeCountError);
-      }
-
-      if (snapshot.latestOrderError) {
-        console.log("Orders latest poll error:", snapshot.latestOrderError);
-      }
-      if (snapshot.latestRechargeError) {
-        console.log("Recharge latest poll error:", snapshot.latestRechargeError);
+        lastRechargeCountRef.current = s.rechargeCount;
       }
     };
 
-    void initLastSeen();
-    const interval = window.setInterval(() => {
-      void poll();
-    }, POLL_INTERVAL_MS);
-
+    void init();
+    const interval = window.setInterval(() => void poll(), POLL_INTERVAL_MS);
     return () => {
       alive = false;
       window.clearInterval(interval);
     };
-  }, [notifyOnce, playNotificationSound]);
+  }, [notifyOrder, notifyRecharge, playOrder, playRecharge]);
 
-  const clearNotifications = () => {
-    setNewOrdersCount(0);
-  };
+  // ─────────────────────────────────────────────────────────────────────────
+
+  const clearNotifications = () => setNewOrdersCount(0);
 
   return {
     newOrdersCount,
