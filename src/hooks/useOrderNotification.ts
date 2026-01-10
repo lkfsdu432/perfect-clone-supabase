@@ -1,8 +1,25 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 const useOrderNotification = () => {
   const [newOrdersCount, setNewOrdersCount] = useState(0);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Initialize audio on first user interaction
+  useEffect(() => {
+    audioRef.current = new Audio("/notification.mp3");
+    audioRef.current.volume = 1;
+    audioRef.current.load();
+  }, []);
+
+  const playNotificationSound = () => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().catch((err) => {
+        console.log("Could not play notification sound:", err);
+      });
+    }
+  };
 
   useEffect(() => {
     // Subscribe to new orders
@@ -17,11 +34,7 @@ const useOrderNotification = () => {
         },
         () => {
           setNewOrdersCount((prev) => prev + 1);
-          // Play notification sound
-          try {
-            const audio = new Audio("/notification.mp3");
-            audio.play().catch(() => {});
-          } catch {}
+          playNotificationSound();
         }
       )
       .subscribe();
@@ -38,6 +51,7 @@ const useOrderNotification = () => {
         },
         () => {
           setNewOrdersCount((prev) => prev + 1);
+          playNotificationSound();
         }
       )
       .subscribe();
