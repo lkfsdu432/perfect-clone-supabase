@@ -162,6 +162,60 @@ const Index = () => {
   useEffect(() => {
     if (!activeOrder) return;
 
+    const applyActiveOrderUpdate = async (updated: ActiveOrder) => {
+      if (updated.status === 'completed' || updated.status === 'rejected') {
+        // لا نقوم بردّ الرصيد من هنا لتفادي التكرار (الرد يتم من لوحة الأدمن)
+        if (updated.status === 'rejected' && tokenData) {
+          const { data: currentToken } = await supabase
+            .from('tokens')
+            .select('balance')
+            .eq('id', tokenData.id)
+            .maybeSingle();
+
+          if (currentToken) {
+            setTokenBalance(Number(currentToken.balance));
+          }
+        }
+
+        // Clear active order
+        localStorage.removeItem(ACTIVE_ORDER_KEY);
+        setActiveOrder(null);
+        setResponseMessage(updated.response_message);
+        setResult(updated.status === 'completed' ? 'success' : 'error');
+        setStep('result');
+        return;
+      }
+
+      if (updated.status === 'cancelled') {
+        // Order cancelled (by customer/admin)
+        localStorage.removeItem(ACTIVE_ORDER_KEY);
+        setActiveOrder(null);
+        setCurrentOrderId(null);
+        setOrderStatus('pending');
+        setResponseMessage(null);
+        setResult(null);
+        setStep('initial');
+
+        // تحديث الرصيد من قاعدة البيانات (في حالة تم ردّ المبلغ من الأدمن)
+        if (tokenData) {
+          const { data: currentToken } = await supabase
+            .from('tokens')
+            .select('balance')
+            .eq('id', tokenData.id)
+            .maybeSingle();
+
+          if (currentToken) {
+            setTokenBalance(Number(currentToken.balance));
+          }
+        }
+
+        toast({ title: 'تم إلغاء الطلب', description: 'تم إلغاء الطلب' });
+        return;
+      }
+
+      setActiveOrder(updated);
+    };
+
     const channel = supabase
       .channel(`active-order-${activeOrder.id}`)
       .on(
@@ -170,66 +224,43 @@ const Index = () => {
           event: 'UPDATE',
           schema: 'public',
           table: 'orders',
-          filter: `id=eq.${activeOrder.id}`
+          filter: `id=eq.${activeOrder.id}`,
         },
         async (payload) => {
-          const updated = payload.new as ActiveOrder;
-
-          if (updated.status === 'completed' || updated.status === 'rejected') {
-            // لا نقوم بردّ الرصيد من هنا لتفادي التكرار (الرد يتم من لوحة الأدمن)
-            if ((updated.status === 'rejected') && tokenData) {
-              const { data: currentToken } = await supabase
-                .from('tokens')
-                .select('balance')
-                .eq('id', tokenData.id)
-                .maybeSingle();
-
-              if (currentToken) {
-                setTokenBalance(Number(currentToken.balance));
-              }
-            }
-
-            // Clear active order
-            localStorage.removeItem(ACTIVE_ORDER_KEY);
-            setActiveOrder(null);
-            setResponseMessage(updated.response_message);
-            setResult(updated.status === 'completed' ? 'success' : 'error');
-            setStep('result');
-          } else if (updated.status === 'cancelled') {
-            // Order cancelled (by customer/admin)
-            localStorage.removeItem(ACTIVE_ORDER_KEY);
-            setActiveOrder(null);
-            setCurrentOrderId(null);
-            setOrderStatus('pending');
-            setResponseMessage(null);
-            setResult(null);
-            setStep('initial');
-
-            // تحديث الرصيد من قاعدة البيانات (في حالة تم ردّ المبلغ من الأدمن)
-            if (tokenData) {
-              const { data: currentToken } = await supabase
-                .from('tokens')
-                .select('balance')
-                .eq('id', tokenData.id)
-                .maybeSingle();
-
-              if (currentToken) {
-                setTokenBalance(Number(currentToken.balance));
-              }
-            }
-
-            toast({ title: 'تم إلغاء الطلب', description: 'تم إلغاء الطلب' });
-          } else {
-            setActiveOrder(updated);
-          }
+          await applyActiveOrderUpdate(payload.new as ActiveOrder);
         }
       )
       .subscribe();
 
+    // Fallback polling (لو الريل-تايم اتأخر/مش شغال، نزامن الحالة كل 2.5 ثانية)
+    const interval = window.setInterval(async () => {
+      const { data } = await supabase
+        .from('orders')
+        .select('id, order_number, status, response_message, product_id, product_option_id, amount, total_price')
+        .eq('id', activeOrder.id)
+        .maybeSingle();
+
+      if (!data) return;
+
+      const synced: ActiveOrder = {
+        ...data,
+        amount: (data as any).amount ?? (data as any).total_price ?? activeOrder.amount,
+      };
+
+      // قلل الـ rerenders
+      if (
+        synced.status !== activeOrder.status ||
+        synced.response_message !== activeOrder.response_message
+      ) {
+        await applyActiveOrderUpdate(synced);
+      }
+    }, 2500);
+
     return () => {
+      window.clearInterval(interval);
       supabase.removeChannel(channel);
     };
-  }, [activeOrder, tokenData, tokenBalance]);
+  }, [activeOrder?.id, activeOrder?.status, activeOrder?.response_message, tokenData?.id]);
 
   const fetchProducts = async () => {
     const { data: productsData } = await supabase.from('products').select('*').eq('is_active', true).order('name');
@@ -626,12 +657,15 @@ const Index = () => {
 
       // لو الحالة اتغيرت بالفعل
       if (orderRow.status !== 'pending') {
+        // زامن الـ UI فوراً
+        setActiveOrder((prev) => (prev ? { ...prev, status: orderRow.status } : prev));
+
         toast({
           title: 'لا يمكن الإلغاء',
           description:
             orderRow.status === 'cancelled'
               ? 'تم إلغاء الطلب بالفعل'
-              : 'لا يمكن إلغاء الطلب لأن الطلب قيد التنفيذ',
+              : 'الطلب انتقل إلى قيد التنفيذ قبل الإلغاء لذلك لا يمكن إلغاؤه',
           variant: 'destructive',
         });
         return;
@@ -661,14 +695,18 @@ const Index = () => {
 
         if (latestError) throw latestError;
 
+        if (latest?.status) {
+          setActiveOrder((prev) => (prev ? { ...prev, status: latest.status } : prev));
+        }
+
         toast({
           title: 'لا يمكن الإلغاء',
           description:
             latest?.status === 'cancelled'
               ? 'تم إلغاء الطلب بالفعل'
               : latest?.status === 'in_progress'
-              ? 'لا يمكن إلغاء الطلب لأن الطلب قيد التنفيذ'
-              : 'تعذر تأكيد إلغاء الطلب الآن، حاول مرة أخرى.',
+              ? 'الطلب انتقل إلى قيد التنفيذ قبل الإلغاء لذلك لا يمكن إلغاؤه'
+              : 'لم يتم تنفيذ الإلغاء لأن حالة الطلب تغيّرت أو لا توجد صلاحية.',
           variant: 'destructive',
         });
         return;
