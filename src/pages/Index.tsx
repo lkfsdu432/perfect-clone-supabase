@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import Header from '@/components/Header';
 import NewsSection from '@/components/NewsSection';
 import { supabase } from '@/integrations/supabase/client';
-import { ShoppingCart, Search, CheckCircle, AlertCircle, Loader2, Clock, XCircle, CheckCircle2, Copy, MessageCircle, Ticket, Ban, CreditCard } from 'lucide-react';
+import { ShoppingCart, Search, CheckCircle, AlertCircle, Loader2, Clock, XCircle, CheckCircle2, Copy, MessageCircle, Ticket, Ban, CreditCard, RotateCcw } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -67,6 +67,16 @@ interface ActiveOrder {
   verification_link?: string | null;
 }
 
+interface RefundRequest {
+  id: string;
+  order_number: string;
+  status: string;
+  reason: string | null;
+  admin_note: string | null;
+  created_at: string;
+  processed_at: string | null;
+}
+
 const ACTIVE_ORDER_KEY = 'active_order';
 
 const Index = () => {
@@ -90,6 +100,7 @@ const Index = () => {
   const [responseMessage, setResponseMessage] = useState<string | null>(null);
   const [tokenOrders, setTokenOrders] = useState<Order[]>([]);
   const [tokenRecharges, setTokenRecharges] = useState<RechargeRequest[]>([]);
+  const [tokenRefunds, setTokenRefunds] = useState<RefundRequest[]>([]);
   const [optionStockCounts, setOptionStockCounts] = useState<Record<string, number>>({});
   const [quantity, setQuantity] = useState(1);
   const [activeOrder, setActiveOrder] = useState<ActiveOrder | null>(null);
@@ -888,11 +899,24 @@ const Index = () => {
         .eq('token_id', data.id)
         .order('created_at', { ascending: false });
 
+      // Fetch refund requests for this token's orders
+      const orderNumbers = (ordersData || []).map((o: any) => o.order_number);
+      let refundsData: any[] = [];
+      if (orderNumbers.length > 0) {
+        const { data: refunds } = await supabase
+          .from('refund_requests')
+          .select('*')
+          .in('order_number', orderNumbers)
+          .order('created_at', { ascending: false });
+        refundsData = refunds || [];
+      }
+
       setTokenOrders((ordersData || []).map(o => ({
         ...o,
         amount: o.amount || o.total_price
       })));
       setTokenRecharges(rechargesData || []);
+      setTokenRefunds(refundsData);
     } else {
       toast({
         title: 'خطأ',
@@ -902,6 +926,7 @@ const Index = () => {
       setShowBalance(false);
       setTokenOrders([]);
       setTokenRecharges([]);
+      setTokenRefunds([]);
     }
     setIsLoading(false);
   };
@@ -1706,6 +1731,19 @@ const Index = () => {
                             {tokenOrders.map((order) => {
                               const statusInfo = getStatusInfo(order.status);
                               const StatusIcon = statusInfo.icon;
+                              // Find refund request for this order
+                              const refund = tokenRefunds.find(r => r.order_number === order.order_number);
+                              const getRefundStatusInfo = (status: string) => {
+                                switch (status) {
+                                  case 'approved':
+                                    return { label: 'تم الاسترداد', icon: CheckCircle2, color: 'text-green-600', bg: 'bg-green-100' };
+                                  case 'rejected':
+                                    return { label: 'مرفوض', icon: XCircle, color: 'text-red-600', bg: 'bg-red-100' };
+                                  case 'pending':
+                                  default:
+                                    return { label: 'قيد المراجعة', icon: Clock, color: 'text-yellow-600', bg: 'bg-yellow-100' };
+                                }
+                              };
                               return (
                                 <div key={order.id} className="bg-muted/30 rounded-lg p-3 border border-border">
                                   <div className="flex items-start justify-between gap-2">
@@ -1734,6 +1772,35 @@ const Index = () => {
                                     <p className="text-xs text-muted-foreground mt-2 p-2 bg-background rounded border">
                                       {order.response_message}
                                     </p>
+                                  )}
+                                  {/* Refund Request Status */}
+                                  {refund && (
+                                    <div className="mt-2 p-2 rounded-lg border border-orange-200 bg-orange-50">
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                          <RotateCcw className="w-3 h-3 text-orange-600" />
+                                          <span className="text-xs font-medium text-orange-800">طلب استرداد</span>
+                                        </div>
+                                        {(() => {
+                                          const refundInfo = getRefundStatusInfo(refund.status);
+                                          const RefundIcon = refundInfo.icon;
+                                          return (
+                                            <div className={`flex items-center gap-1 ${refundInfo.color}`}>
+                                              <RefundIcon className="w-3 h-3" />
+                                              <span className="text-xs font-medium">{refundInfo.label}</span>
+                                            </div>
+                                          );
+                                        })()}
+                                      </div>
+                                      {refund.reason && (
+                                        <p className="text-xs text-orange-700 mt-1">السبب: {refund.reason}</p>
+                                      )}
+                                      {refund.admin_note && (
+                                        <p className="text-xs text-muted-foreground mt-1 p-1.5 bg-background rounded border">
+                                          ملاحظة الإدارة: {refund.admin_note}
+                                        </p>
+                                      )}
+                                    </div>
                                   )}
                                 </div>
                               );
