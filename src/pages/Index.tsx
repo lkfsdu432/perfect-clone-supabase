@@ -1112,7 +1112,7 @@ const Index = () => {
         {/* Main Content - Two Column Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Buy Here Card */}
-          <div className="card-simple p-6">
+          <div className="card-simple p-6 select-text">
           <div className="flex items-center gap-2 mb-2">
             <ShoppingCart className="w-5 h-5 text-primary" />
             <h2 className="text-xl font-bold text-primary">اشتري من هنا</h2>
@@ -1620,7 +1620,7 @@ const Index = () => {
         </div>
 
           {/* Second Card - Info or Active Order */}
-          <div className="card-simple p-6">
+          <div className="card-simple p-6 select-text">
             {activeOrder ? (
               // Show active order status/chat
               <div className="space-y-4">
