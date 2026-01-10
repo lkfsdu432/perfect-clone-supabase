@@ -2,8 +2,13 @@ import { useEffect } from 'react';
 
 const useDevToolsProtection = () => {
   useEffect(() => {
-    // Disable right-click context menu
+    // Disable right-click context menu (except in select-text elements)
     const handleContextMenu = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      // السماح بالكليك يمين داخل العناصر اللي فيها class "select-text"
+      if (target.closest('.select-text')) {
+        return;
+      }
       e.preventDefault();
     };
 
@@ -46,27 +51,16 @@ const useDevToolsProtection = () => {
       }
     };
 
-    // Disable text selection (optional - can be removed if you want selection)
+    // Disable text selection (except in select-text elements)
     const handleSelectStart = (e: Event) => {
-      // Allow selection in input and textarea
       const target = e.target as HTMLElement;
+      // السماح بالتحديد في input و textarea
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
         return true;
       }
-      // Uncomment below to disable selection everywhere else
-      // e.preventDefault();
-      // return false;
-    };
-
-    // DevTools detection using debugger timing
-    let devtoolsOpen = false;
-    const detectDevTools = () => {
-      const threshold = 160;
-      const before = performance.now();
-      debugger;
-      const after = performance.now();
-      if (after - before > threshold) {
-        devtoolsOpen = true;
+      // السماح بالتحديد في العناصر اللي فيها class "select-text"
+      if (target.closest('.select-text')) {
+        return true;
       }
     };
 
