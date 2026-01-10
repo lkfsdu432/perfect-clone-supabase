@@ -593,6 +593,16 @@ const Index = () => {
   const handleCancelOrder = async () => {
     if (!activeOrder || !tokenData) return;
 
+    // UI already disables this, but keep a hard guard
+    if (activeOrder.status === 'in_progress') {
+      toast({
+        title: 'لا يمكن الإلغاء',
+        description: 'لا يمكن إلغاء الطلب لأن الطلب قيد التنفيذ',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -614,10 +624,14 @@ const Index = () => {
         return;
       }
 
+      // لو الحالة اتغيرت بالفعل
       if (orderRow.status !== 'pending') {
         toast({
           title: 'لا يمكن الإلغاء',
-          description: orderRow.status === 'cancelled' ? 'تم إلغاء الطلب بالفعل' : 'لا يمكن إلغاء طلب قيد التنفيذ',
+          description:
+            orderRow.status === 'cancelled'
+              ? 'تم إلغاء الطلب بالفعل'
+              : 'لا يمكن إلغاء الطلب لأن الطلب قيد التنفيذ',
           variant: 'destructive',
         });
         return;
@@ -625,33 +639,51 @@ const Index = () => {
 
       const refundAmount = Number(orderRow.amount ?? orderRow.total_price ?? activeOrder.amount ?? 0);
 
-      // Update order status to cancelled
-      const { error: orderError } = await supabase
+      // IMPORTANT: نحدّث بشرط status=pending لتفادي سباق الحالة (لو اتحول لـ in_progress قبل الإلغاء)
+      // ونطلب RETURNING علشان نعرف هل فعلاً اتعدل صف ولا لأ
+      const { data: updatedOrder, error: updateError } = await supabase
         .from('orders')
         .update({ status: 'cancelled' })
-        .eq('id', activeOrder.id);
-
-      if (orderError) throw orderError;
-
-      // تأكيد من الداتابيز (بعض السياسات قد تمنع RETURNING في update)
-      await new Promise((r) => setTimeout(r, 150));
-      const { data: confirmedOrder, error: confirmError } = await supabase
-        .from('orders')
-        .select('status')
         .eq('id', activeOrder.id)
+        .eq('status', 'pending')
+        .select('id, status')
         .maybeSingle();
 
-      if (confirmError) throw confirmError;
-      if (!confirmedOrder || confirmedOrder.status !== 'cancelled') {
-        throw new Error('ORDER_CANCEL_NOT_CONFIRMED');
+      if (updateError) throw updateError;
+
+      // لو مفيش صف اتعدل: غالباً الحالة اتغيرت بين القراءة والتحديث
+      if (!updatedOrder) {
+        const { data: latest, error: latestError } = await supabase
+          .from('orders')
+          .select('status')
+          .eq('id', activeOrder.id)
+          .maybeSingle();
+
+        if (latestError) throw latestError;
+
+        toast({
+          title: 'لا يمكن الإلغاء',
+          description:
+            latest?.status === 'cancelled'
+              ? 'تم إلغاء الطلب بالفعل'
+              : latest?.status === 'in_progress'
+              ? 'لا يمكن إلغاء الطلب لأن الطلب قيد التنفيذ'
+              : 'تعذر تأكيد إلغاء الطلب الآن، حاول مرة أخرى.',
+          variant: 'destructive',
+        });
+        return;
       }
 
-      // تحديث واجهة سجل الطلبات فوراً (حتى قبل إعادة الجلب)
+      if (updatedOrder.status !== 'cancelled') {
+        throw new Error('ORDER_CANCEL_FAILED');
+      }
+
+      // تحديث واجهة سجل الطلبات فوراً
       setTokenOrders((prev) =>
         prev.map((o) => (o.id === activeOrder.id ? { ...o, status: 'cancelled' } : o))
       );
 
-      // Fetch latest balance then refund (لتفادي أي تعارض)
+      // Refund: fetch latest balance then add refund amount (لتفادي أي تعارض)
       const { data: currentToken, error: tokenFetchError } = await supabase
         .from('tokens')
         .select('balance')
@@ -686,7 +718,7 @@ const Index = () => {
       };
 
       await fetchOrders();
-      await new Promise((r) => setTimeout(r, 250));
+      await new Promise((r) => setTimeout(r, 200));
       await fetchOrders();
 
       // Update local state
@@ -706,16 +738,13 @@ const Index = () => {
     } catch (error) {
       console.error('Error cancelling order:', error);
       const msg =
-        (typeof error === 'object' && error !== null && 'message' in error)
+        typeof error === 'object' && error !== null && 'message' in error
           ? String((error as any).message)
           : 'UNKNOWN_ERROR';
 
       toast({
         title: 'خطأ',
-        description:
-          msg === 'ORDER_CANCEL_NOT_CONFIRMED'
-            ? 'تم إرسال طلب الإلغاء لكن لم يتم تأكيد الحالة بعد—جرّب مرة أخرى بعد ثواني.'
-            : `فشل في إلغاء الطلب أو استرداد المبلغ: ${msg}`,
+        description: `فشل في إلغاء الطلب أو استرداد المبلغ: ${msg}`,
         variant: 'destructive',
       });
     } finally {
