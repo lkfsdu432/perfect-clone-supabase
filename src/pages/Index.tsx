@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import OrderChat from '@/components/OrderChat';
+import useDeviceFingerprint from '@/hooks/useDeviceFingerprint';
 
 interface Product {
   id: string;
@@ -34,6 +35,7 @@ interface ProductOption {
   description: string | null;
   estimated_time: string | null;
   is_active: boolean;
+  purchase_limit: number | null;
 }
 
 interface Order {
@@ -108,8 +110,10 @@ const Index = () => {
   const [couponCode, setCouponCode] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount_type: 'percentage' | 'fixed'; discount_value: number } | null>(null);
   const [couponLoading, setCouponLoading] = useState(false);
+  const [purchaseLimitError, setPurchaseLimitError] = useState<string | null>(null);
   
   const { toast } = useToast();
+  const { fingerprint, getFingerprint } = useDeviceFingerprint();
 
   const product = products.find(p => p.id === selectedProductId);
   const options = productOptions.filter(o => o.product_id === selectedProductId);
@@ -436,6 +440,28 @@ const Index = () => {
     }
 
     setIsLoading(true);
+    setPurchaseLimitError(null);
+
+    // Check purchase limit for this device
+    const deviceFingerprint = getFingerprint();
+    if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && deviceFingerprint) {
+      const { count, error: countError } = await supabase
+        .from('device_purchases')
+        .select('*', { count: 'exact', head: true })
+        .eq('device_fingerprint', deviceFingerprint)
+        .eq('product_option_id', selectedOption.id);
+
+      if (!countError && count !== null && count >= selectedOption.purchase_limit) {
+        setPurchaseLimitError(`لقد وصلت للحد الأقصى للشراء (${selectedOption.purchase_limit}) لهذا المنتج من هذا الجهاز`);
+        toast({
+          title: 'تم الوصول للحد الأقصى',
+          description: `لا يمكنك شراء أكثر من ${selectedOption.purchase_limit} من هذا المنتج`,
+          variant: 'destructive',
+        });
+        setIsLoading(false);
+        return;
+      }
+    }
 
     // For auto-delivery, first check if stock is available
     if (isAutoDelivery) {
@@ -524,6 +550,17 @@ const Index = () => {
         [selectedOption.id]: (prev[selectedOption.id] || 0) - quantity
       }));
 
+      // Record device purchase for limit tracking
+      const deviceFingerprint = getFingerprint();
+      if (deviceFingerprint && selectedOption.purchase_limit && selectedOption.purchase_limit > 0) {
+        await supabase.from('device_purchases').insert({
+          device_fingerprint: deviceFingerprint,
+          product_option_id: selectedOption.id,
+          order_id: orderData.id,
+          quantity: quantity
+        });
+      }
+
       setTokenBalance(newBalance);
       setResponseMessage(combinedContent);
       setResult('success');
@@ -589,6 +626,17 @@ const Index = () => {
       orderId: orderData.id,
       tokenValue: token
     }));
+
+    // Record device purchase for limit tracking
+    const deviceFingerprintManual = getFingerprint();
+    if (deviceFingerprintManual && selectedOption.purchase_limit && selectedOption.purchase_limit > 0) {
+      await supabase.from('device_purchases').insert({
+        device_fingerprint: deviceFingerprintManual,
+        product_option_id: selectedOption.id,
+        order_id: orderData.id,
+        quantity: 1
+      });
+    }
 
     // Set active order - stay on same page, show order status in second card
     setActiveOrder({
