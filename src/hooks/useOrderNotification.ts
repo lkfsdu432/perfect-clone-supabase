@@ -6,63 +6,96 @@ const useOrderNotification = () => {
   const [soundEnabled, setSoundEnabled] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Initialize audio
+  // Prepare audio
   useEffect(() => {
-    audioRef.current = new Audio("/notification.mp3");
-    audioRef.current.volume = 1;
-  }, []);
+    const audio = new Audio("/notification.mp3");
+    audio.preload = "auto";
+    audio.volume = 1;
+    audioRef.current = audio;
 
-  const playNotificationSound = useCallback(() => {
-    if (audioRef.current && soundEnabled) {
-      audioRef.current.currentTime = 0;
-      audioRef.current.play().catch((err) => {
-        console.log("Could not play notification sound:", err);
-      });
-    }
-  }, [soundEnabled]);
-
-  // Enable sound after user interaction
-  const enableSound = useCallback(() => {
-    if (audioRef.current) {
-      // Play a silent sound to unlock audio
-      audioRef.current.volume = 0.1;
-      audioRef.current.play().then(() => {
-        audioRef.current!.pause();
-        audioRef.current!.currentTime = 0;
-        audioRef.current!.volume = 1;
-        setSoundEnabled(true);
-      }).catch(() => {
-        // Still enable for next attempt
-        setSoundEnabled(true);
-      });
-    } else {
-      setSoundEnabled(true);
+    try {
+      audio.load();
+    } catch {
+      // ignore
     }
   }, []);
+
+  const playBeepFallback = useCallback(() => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = "sine";
+      osc.frequency.value = 880;
+
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.15, ctx.currentTime + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.15);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start();
+      osc.stop(ctx.currentTime + 0.16);
+
+      osc.onended = () => {
+        ctx.close().catch(() => {});
+      };
+    } catch (err) {
+      console.log("Beep fallback failed:", err);
+    }
+  }, []);
+
+  const tryPlayMp3 = useCallback(async () => {
+    const audio = audioRef.current;
+    if (!audio) return false;
+
+    try {
+      audio.currentTime = 0;
+      await audio.play();
+      return true;
+    } catch (err) {
+      console.log("Could not play notification mp3:", err);
+      return false;
+    }
+  }, []);
+
+  const testSound = useCallback(async () => {
+    const ok = await tryPlayMp3();
+    if (!ok) playBeepFallback();
+  }, [tryPlayMp3, playBeepFallback]);
+
+  // Must be called from a user click
+  const enableSound = useCallback(async () => {
+    setSoundEnabled(true);
+    await testSound();
+  }, [testSound]);
 
   const disableSound = useCallback(() => {
     setSoundEnabled(false);
   }, []);
 
-  const toggleSound = useCallback(() => {
+  const toggleSound = useCallback(async () => {
     if (soundEnabled) {
       disableSound();
     } else {
-      enableSound();
+      await enableSound();
     }
   }, [soundEnabled, enableSound, disableSound]);
 
+  const playNotificationSound = useCallback(() => {
+    if (!soundEnabled) return;
+    void testSound();
+  }, [soundEnabled, testSound]);
+
   useEffect(() => {
-    // Subscribe to new orders
-    const channel = supabase
+    const ordersChannel = supabase
       .channel("new-orders")
       .on(
         "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "orders",
-        },
+        { event: "INSERT", schema: "public", table: "orders" },
         () => {
           setNewOrdersCount((prev) => prev + 1);
           playNotificationSound();
@@ -70,16 +103,11 @@ const useOrderNotification = () => {
       )
       .subscribe();
 
-    // Also subscribe to recharge requests
     const rechargeChannel = supabase
       .channel("new-recharge")
       .on(
         "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "recharge_requests",
-        },
+        { event: "INSERT", schema: "public", table: "recharge_requests" },
         () => {
           setNewOrdersCount((prev) => prev + 1);
           playNotificationSound();
@@ -88,7 +116,7 @@ const useOrderNotification = () => {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(ordersChannel);
       supabase.removeChannel(rechargeChannel);
     };
   }, [playNotificationSound]);
@@ -97,13 +125,14 @@ const useOrderNotification = () => {
     setNewOrdersCount(0);
   };
 
-  return { 
-    newOrdersCount, 
-    clearNotifications, 
-    soundEnabled, 
-    toggleSound, 
-    enableSound, 
-    disableSound 
+  return {
+    newOrdersCount,
+    clearNotifications,
+    soundEnabled,
+    toggleSound,
+    enableSound,
+    disableSound,
+    testSound,
   };
 };
 
