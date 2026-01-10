@@ -74,7 +74,9 @@ interface Order {
   password: string | null;
   verification_link: string | null;
   response_message: string | null;
+  quantity?: number;
 }
+
 
 interface RefundRequest {
   id: string;
