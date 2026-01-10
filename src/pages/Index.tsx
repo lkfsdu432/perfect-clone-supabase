@@ -1693,16 +1693,16 @@ const Index = () => {
                                   const statusInfo = getStatusInfo(recharge.status);
                                   const StatusIcon = statusInfo.icon;
                                   return (
-                                    <div key={`recharge-${recharge.id}`} className="bg-blue-50/50 rounded-lg p-3 border border-blue-200/50">
+                                    <div key={`recharge-${recharge.id}`} className="bg-emerald-500/10 rounded-lg p-3 border border-emerald-500/30">
                                       <div className="flex items-start justify-between gap-2">
                                         <div className="flex-1 min-w-0">
                                           <div className="flex items-center gap-2 mb-1">
-                                            <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-medium flex items-center gap-1">
+                                            <span className="text-xs bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded font-medium flex items-center gap-1">
                                               <CreditCard className="w-3 h-3" />
                                               شحن رصيد
                                             </span>
                                           </div>
-                                          <p className="font-medium text-sm">
+                                          <p className="font-medium text-sm text-foreground">
                                             {recharge.payment_method}
                                           </p>
                                           <p className="text-xs text-muted-foreground mt-1">
@@ -1710,7 +1710,7 @@ const Index = () => {
                                           </p>
                                         </div>
                                         <div className="text-left">
-                                          <span className="font-bold text-green-600 text-sm">+${recharge.amount}</span>
+                                          <span className="font-bold text-emerald-400 text-sm">+${recharge.amount}</span>
                                           <div className={`flex items-center gap-1 mt-1 ${statusInfo.color}`}>
                                             <StatusIcon className={`w-3 h-3 ${recharge.status === 'pending' ? 'animate-pulse' : ''}`} />
                                             <span className="text-xs font-medium">{statusInfo.label}</span>
@@ -1718,7 +1718,7 @@ const Index = () => {
                                         </div>
                                       </div>
                                       {recharge.admin_notes && (
-                                        <p className="text-xs text-muted-foreground mt-2 p-2 bg-background rounded border">
+                                        <p className="text-xs text-muted-foreground mt-2 p-2 bg-card/50 rounded border border-border">
                                           {recharge.admin_notes}
                                         </p>
                                       )}
