@@ -496,6 +496,7 @@ const Index = () => {
         token_id: tokenData.id,
         product_id: product.id,
         product_option_id: selectedOption.id,
+        quantity: quantity,
         amount: totalPrice,
         total_price: totalPrice,
         discount_amount: discountAmount,
