@@ -143,4 +143,9 @@
   .animate-scanline {
     animation: scanline 3s linear infinite;
   }
+  /* السماح بالنسخ في الكروت */
+.allow-copy {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+}
 }
