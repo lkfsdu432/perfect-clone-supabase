@@ -160,7 +160,7 @@ const StockManagement = () => {
   };
 
   // Filter auto-delivery options only
-  const autoDeliveryOptions = productOptions.filter(o => o.type === 'auto');
+  const autoDeliveryOptions = productOptions.filter(o => o.type === 'none' || o.type === 'auto');
 
   // Group stock by option
   const groupedStock = stockItems.reduce((acc, item) => {
