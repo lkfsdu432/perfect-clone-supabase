@@ -10,8 +10,10 @@ const useOrderNotification = () => {
   const soundEnabledRef = useRef(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const lastOrderIdRef = useRef<string | null>(null);
-  const lastRechargeIdRef = useRef<string | null>(null);
+  const lastOrderIdRef = useRef<string | number | null>(null);
+  const lastRechargeIdRef = useRef<string | number | null>(null);
+  const lastOrderCountRef = useRef<number | null>(null);
+  const lastRechargeCountRef = useRef<number | null>(null);
 
   useEffect(() => {
     soundEnabledRef.current = soundEnabled;
@@ -135,9 +137,10 @@ const useOrderNotification = () => {
   }, [tryPlayMp3, playBeepFallback]);
 
   const notifyOnce = useCallback(
-    async (type: "order" | "recharge", id: string | null) => {
-      if (!id) return;
+    async (type: "order" | "recharge", id: string | number | null) => {
+      if (id === null || id === undefined) return;
 
+      // Deduplicate per-table by id
       if (type === "order") {
         if (lastOrderIdRef.current === id) return;
         lastOrderIdRef.current = id;
@@ -184,12 +187,12 @@ const useOrderNotification = () => {
     };
   }, [notifyOnce]);
 
-  // Polling fallback (covers cases where realtime isn't enabled for some tables)
+  // Polling fallback (covers cases where realtime isn't enabled / isn't delivered for some tables)
   useEffect(() => {
     let alive = true;
 
-    const initLastSeen = async () => {
-      const [o, r] = await Promise.all([
+    const fetchLatestAndCounts = async () => {
+      const [oLatest, rLatest, oCount, rCount] = await Promise.all([
         supabase
           .from("orders")
           .select("id, created_at")
@@ -202,40 +205,90 @@ const useOrderNotification = () => {
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle(),
+        supabase.from("orders").select("id", { count: "exact", head: true }),
+        supabase
+          .from("recharge_requests")
+          .select("id", { count: "exact", head: true }),
       ]);
 
+      return {
+        latestOrderId: (oLatest.data as any)?.id ?? null,
+        latestRechargeId: (rLatest.data as any)?.id ?? null,
+        orderCount: oCount.count ?? null,
+        rechargeCount: rCount.count ?? null,
+        orderCountError: oCount.error ?? null,
+        rechargeCountError: rCount.error ?? null,
+        latestOrderError: oLatest.error ?? null,
+        latestRechargeError: rLatest.error ?? null,
+      };
+    };
+
+    const initLastSeen = async () => {
+      const snapshot = await fetchLatestAndCounts();
       if (!alive) return;
-      lastOrderIdRef.current = (o.data as any)?.id ?? lastOrderIdRef.current;
-      lastRechargeIdRef.current = (r.data as any)?.id ?? lastRechargeIdRef.current;
+
+      lastOrderIdRef.current = snapshot.latestOrderId ?? lastOrderIdRef.current;
+      lastRechargeIdRef.current = snapshot.latestRechargeId ?? lastRechargeIdRef.current;
+
+      if (typeof snapshot.orderCount === "number") {
+        lastOrderCountRef.current = snapshot.orderCount;
+      }
+      if (typeof snapshot.rechargeCount === "number") {
+        lastRechargeCountRef.current = snapshot.rechargeCount;
+      }
     };
 
     const poll = async () => {
-      const [o, r] = await Promise.all([
-        supabase
-          .from("orders")
-          .select("id, created_at")
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle(),
-        supabase
-          .from("recharge_requests")
-          .select("id, created_at")
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle(),
-      ]);
-
+      const snapshot = await fetchLatestAndCounts();
       if (!alive) return;
 
-      const latestOrderId = (o.data as any)?.id ?? null;
-      const latestRechargeId = (r.data as any)?.id ?? null;
-
-      // Only trigger on change
-      if (latestOrderId && latestOrderId !== lastOrderIdRef.current) {
-        void notifyOnce("order", latestOrderId);
+      // 1) Prefer ID-based detection (avoids duplicates)
+      if (
+        snapshot.latestOrderId !== null &&
+        snapshot.latestOrderId !== lastOrderIdRef.current
+      ) {
+        void notifyOnce("order", snapshot.latestOrderId);
       }
-      if (latestRechargeId && latestRechargeId !== lastRechargeIdRef.current) {
-        void notifyOnce("recharge", latestRechargeId);
+      if (
+        snapshot.latestRechargeId !== null &&
+        snapshot.latestRechargeId !== lastRechargeIdRef.current
+      ) {
+        void notifyOnce("recharge", snapshot.latestRechargeId);
+      }
+
+      // 2) Count-based fallback detection (covers cases where latest row isn't visible)
+      if (typeof snapshot.orderCount === "number") {
+        const prev = lastOrderCountRef.current;
+        if (typeof prev === "number" && snapshot.orderCount > prev) {
+          // If ID-based didn't fire, still alert
+          if (snapshot.latestOrderId === null || snapshot.latestOrderId === lastOrderIdRef.current) {
+            setNewOrdersCount((p) => p + 1);
+            void playNotificationSound();
+          }
+        }
+        lastOrderCountRef.current = snapshot.orderCount;
+      } else if (snapshot.orderCountError) {
+        console.log("Orders count poll error:", snapshot.orderCountError);
+      }
+
+      if (typeof snapshot.rechargeCount === "number") {
+        const prev = lastRechargeCountRef.current;
+        if (typeof prev === "number" && snapshot.rechargeCount > prev) {
+          if (snapshot.latestRechargeId === null || snapshot.latestRechargeId === lastRechargeIdRef.current) {
+            setNewOrdersCount((p) => p + 1);
+            void playNotificationSound();
+          }
+        }
+        lastRechargeCountRef.current = snapshot.rechargeCount;
+      } else if (snapshot.rechargeCountError) {
+        console.log("Recharge count poll error:", snapshot.rechargeCountError);
+      }
+
+      if (snapshot.latestOrderError) {
+        console.log("Orders latest poll error:", snapshot.latestOrderError);
+      }
+      if (snapshot.latestRechargeError) {
+        console.log("Recharge latest poll error:", snapshot.latestRechargeError);
       }
     };
 
@@ -248,7 +301,7 @@ const useOrderNotification = () => {
       alive = false;
       window.clearInterval(interval);
     };
-  }, [notifyOnce]);
+  }, [notifyOnce, playNotificationSound]);
 
   const clearNotifications = () => {
     setNewOrdersCount(0);
