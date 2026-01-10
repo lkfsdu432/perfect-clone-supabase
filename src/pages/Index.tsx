@@ -637,58 +637,105 @@ const Index = () => {
     setIsLoading(true);
 
     try {
-      // Call Edge Function to cancel order (bypasses RLS)
-      const { data, error } = await supabase.functions.invoke('cancel-order', {
-        body: {
-          orderId: activeOrder.id,
-          tokenId: tokenData.id,
-        },
-      });
+      // تأكيد حالة الطلب من قاعدة البيانات
+      const { data: orderRow, error: orderFetchError } = await supabase
+        .from('orders')
+        .select('status, amount, total_price')
+        .eq('id', activeOrder.id)
+        .maybeSingle();
 
-      // supabase-js treats non-2xx as error; try to extract body message if possible
-      if (error) {
-        let parsed: any = null;
-        try {
-          parsed = await (error as any)?.context?.json?.();
-        } catch {
-          // ignore
-        }
+      if (orderFetchError) throw orderFetchError;
 
-        const errCode = parsed?.error || (error as any).message || 'REQUEST_FAILED';
-        const errMsg = parsed?.message || 'فشل في الاتصال بالخادم، حاول مرة أخرى';
-
-        if (errCode === 'ORDER_ALREADY_CANCELLED') {
-          setActiveOrder((prev) => (prev ? { ...prev, status: 'cancelled' } : prev));
-          toast({ title: 'تنبيه', description: errMsg || 'تم إلغاء الطلب بالفعل' });
-        } else if (errCode === 'ORDER_IN_PROGRESS') {
-          setActiveOrder((prev) => (prev ? { ...prev, status: 'in_progress' } : prev));
-          toast({
-            title: 'لا يمكن الإلغاء',
-            description: errMsg || 'لا يمكن إلغاء الطلب لأنه قيد التنفيذ',
-            variant: 'destructive',
-          });
-        } else {
-          toast({
-            title: 'خطأ',
-            description: errMsg,
-            variant: 'destructive',
-          });
-        }
+      if (!orderRow) {
+        localStorage.removeItem(ACTIVE_ORDER_KEY);
+        setActiveOrder(null);
+        setCurrentOrderId(null);
+        setStep('initial');
+        toast({ title: 'تنبيه', description: 'الطلب غير موجود' });
         return;
       }
 
-      const result = data as any;
-      if (!result?.success) {
+      // لو الحالة اتغيرت بالفعل
+      if (orderRow.status !== 'pending') {
+        setActiveOrder((prev) => (prev ? { ...prev, status: orderRow.status } : prev));
         toast({
-          title: 'خطأ',
-          description: result?.message || result?.error || 'فشل في إلغاء الطلب',
+          title: 'لا يمكن الإلغاء',
+          description:
+            orderRow.status === 'cancelled'
+              ? 'تم إلغاء الطلب بالفعل'
+              : 'الطلب انتقل إلى قيد التنفيذ قبل الإلغاء لذلك لا يمكن إلغاؤه',
           variant: 'destructive',
         });
         return;
       }
 
-      // Success! Update local state
-      const { refundAmount, newBalance } = result;
+      const refundAmount = Number(orderRow.amount ?? orderRow.total_price ?? activeOrder.amount ?? 0);
+
+      // Try Edge Function first (bypasses RLS)
+      let cancelSuccess = false;
+      let newBalance = 0;
+
+      try {
+        const { data, error } = await supabase.functions.invoke('cancel-order', {
+          body: {
+            orderId: activeOrder.id,
+            tokenId: tokenData.id,
+          },
+        });
+
+        if (!error && data?.success) {
+          cancelSuccess = true;
+          newBalance = data.newBalance;
+        }
+      } catch {
+        // Edge function not available, fallback to direct update
+      }
+
+      // Fallback: Direct database update if Edge Function failed
+      if (!cancelSuccess) {
+        // Update order status to cancelled
+        const { error: updateError } = await supabase
+          .from('orders')
+          .update({ status: 'cancelled' })
+          .eq('id', activeOrder.id)
+          .eq('status', 'pending');
+
+        if (updateError) throw updateError;
+
+        // Verify the update
+        const { data: confirmedOrder } = await supabase
+          .from('orders')
+          .select('status')
+          .eq('id', activeOrder.id)
+          .maybeSingle();
+
+        if (!confirmedOrder || confirmedOrder.status !== 'cancelled') {
+          // RLS might have blocked the update
+          toast({
+            title: 'لا يمكن الإلغاء',
+            description: 'لم يتم تنفيذ الإلغاء - تأكد من وجود صلاحية UPDATE على جدول orders في Supabase.',
+            variant: 'destructive',
+          });
+          return;
+        }
+
+        // Refund balance
+        const { data: currentToken } = await supabase
+          .from('tokens')
+          .select('balance')
+          .eq('id', tokenData.id)
+          .maybeSingle();
+
+        if (!currentToken) throw new Error('TOKEN_NOT_FOUND');
+
+        newBalance = Number(currentToken.balance) + refundAmount;
+        const { error: tokenError } = await supabase
+          .from('tokens')
+          .update({ balance: newBalance })
+          .eq('id', tokenData.id);
+
+        if (tokenError) throw tokenError;
+      }
 
       // تحديث واجهة سجل الطلبات فوراً
       setTokenOrders((prev) =>
@@ -707,7 +754,7 @@ const Index = () => {
 
       toast({
         title: 'تم إلغاء الطلب',
-        description: result.message || `تم إرجاع $${refundAmount.toFixed(2)} إلى رصيدك`,
+        description: `تم إرجاع $${refundAmount.toFixed(2)} إلى رصيدك`,
       });
 
       // Refresh orders list
@@ -727,7 +774,7 @@ const Index = () => {
       console.error('Error cancelling order:', error);
       toast({
         title: 'خطأ',
-        description: 'فشل في الاتصال بالخادم، حاول مرة أخرى',
+        description: 'فشل في إلغاء الطلب - تأكد من وجود صلاحية UPDATE على جدول orders في Supabase.',
         variant: 'destructive',
       });
     } finally {
