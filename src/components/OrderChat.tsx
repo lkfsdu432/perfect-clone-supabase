@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Send, MessageCircle, Check, CheckCheck } from 'lucide-react';
+import { playChatSound } from '@/hooks/useOrderNotification';
 
 interface Message {
   id: string;
@@ -16,29 +17,6 @@ interface OrderChatProps {
   senderType: 'customer' | 'admin';
 }
 
-// Notification sound using Web Audio API
-const playNotificationSound = () => {
-  try {
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
-
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-
-    oscillator.frequency.value = 800;
-    oscillator.type = 'sine';
-
-    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
-
-    oscillator.start(audioContext.currentTime);
-    oscillator.stop(audioContext.currentTime + 0.3);
-  } catch (error) {
-    console.log('Could not play notification sound');
-  }
-};
-
 const OrderChat = ({ orderId, senderType }: OrderChatProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -51,7 +29,6 @@ const OrderChat = ({ orderId, senderType }: OrderChatProps) => {
 
   // Mark messages as read when viewing
   const markMessagesAsRead = async () => {
-    // Mark messages from the OTHER party as read
     const unreadMessages = messages.filter(
       msg => msg.sender_type !== senderType && !msg.is_read
     );
@@ -85,7 +62,7 @@ const OrderChat = ({ orderId, senderType }: OrderChatProps) => {
 
           // Play sound only if message is from the other party
           if (newMsg.sender_type !== senderType) {
-            playNotificationSound();
+            playChatSound();
           }
         }
       )
@@ -111,7 +88,7 @@ const OrderChat = ({ orderId, senderType }: OrderChatProps) => {
     };
   }, [orderId, senderType]);
 
-  // Mark messages as read when messages change or component mounts
+  // Mark messages as read when messages change
   useEffect(() => {
     if (messages.length > 0) {
       markMessagesAsRead();
@@ -193,7 +170,6 @@ const OrderChat = ({ orderId, senderType }: OrderChatProps) => {
                   }`}>
                     {new Date(msg.created_at).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
                   </span>
-                  {/* Show read status only for messages sent by current user */}
                   {msg.sender_type === senderType && (
                     msg.is_read ? (
                       <CheckCheck className={`w-3 h-3 ${
