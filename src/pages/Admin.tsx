@@ -1540,13 +1540,13 @@ const Admin = () => {
               </button>
 
               <button
-                onClick={() => {
-                  const success = testSound();
+                onClick={async () => {
+                  const success = await testSound();
                   toast({
                     title: success ? "تم تشغيل الصوت ✅" : "فشل تشغيل الصوت ❌",
-                    description: success 
-                      ? "الصوت يعمل بشكل صحيح!" 
-                      : "تأكد من أن المتصفح يسمح بتشغيل الصوت.",
+                    description: success
+                      ? "الصوت يعمل بشكل صحيح!"
+                      : "تأكد من أن المتصفح يسمح بتشغيل الصوت وأن الجهاز ليس على كتم.",
                   });
                 }}
                 className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted text-muted-foreground hover:bg-muted/80 transition-colors"
