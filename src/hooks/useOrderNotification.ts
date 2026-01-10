@@ -5,67 +5,56 @@ const useOrderNotification = () => {
   const [newOrdersCount, setNewOrdersCount] = useState(0);
   const [soundEnabled, setSoundEnabled] = useState(false);
 
-  // Simple beep using Web Audio API - works everywhere
-  const playBeep = useCallback(() => {
+  // Nice notification sound using Web Audio API
+  const playNotificationBeep = useCallback(() => {
     try {
       const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
       const audioCtx = new AudioContext();
       
-      const oscillator = audioCtx.createOscillator();
-      const gainNode = audioCtx.createGain();
-      
-      oscillator.connect(gainNode);
-      gainNode.connect(audioCtx.destination);
-      
-      oscillator.frequency.value = 800;
-      oscillator.type = "sine";
-      
-      gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
-      
-      oscillator.start(audioCtx.currentTime);
-      oscillator.stop(audioCtx.currentTime + 0.3);
-      
-      // Second beep
-      setTimeout(() => {
-        try {
-          const osc2 = audioCtx.createOscillator();
-          const gain2 = audioCtx.createGain();
-          
-          osc2.connect(gain2);
-          gain2.connect(audioCtx.destination);
-          
-          osc2.frequency.value = 1000;
-          osc2.type = "sine";
-          
-          gain2.gain.setValueAtTime(0.3, audioCtx.currentTime);
-          gain2.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
-          
-          osc2.start(audioCtx.currentTime);
-          osc2.stop(audioCtx.currentTime + 0.3);
-        } catch (e) {
-          console.log("Second beep failed", e);
-        }
-      }, 150);
+      // Create a nice "ding dong" notification sound
+      const playTone = (frequency: number, startTime: number, duration: number) => {
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        
+        oscillator.frequency.value = frequency;
+        oscillator.type = "sine";
+        
+        // Smooth fade in and out
+        gainNode.gain.setValueAtTime(0, startTime);
+        gainNode.gain.linearRampToValueAtTime(0.4, startTime + 0.05);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+        
+        oscillator.start(startTime);
+        oscillator.stop(startTime + duration);
+      };
+
+      // Play pleasant "ding-dong" melody
+      const now = audioCtx.currentTime;
+      playTone(880, now, 0.15);          // A5 - first ding
+      playTone(1318.5, now + 0.15, 0.2); // E6 - higher dong
+      playTone(1108.7, now + 0.35, 0.25); // C#6 - resolve
       
       return true;
     } catch (err) {
-      console.log("Beep failed:", err);
+      console.log("Notification sound failed:", err);
       return false;
     }
   }, []);
 
   const playNotificationSound = useCallback(() => {
     if (soundEnabled) {
-      playBeep();
+      console.log("Playing notification sound...");
+      playNotificationBeep();
     }
-  }, [soundEnabled, playBeep]);
+  }, [soundEnabled, playNotificationBeep]);
 
   const enableSound = useCallback(() => {
     setSoundEnabled(true);
-    // Play test beep immediately
-    playBeep();
-  }, [playBeep]);
+    playNotificationBeep();
+  }, [playNotificationBeep]);
 
   const disableSound = useCallback(() => {
     setSoundEnabled(false);
@@ -80,33 +69,41 @@ const useOrderNotification = () => {
   }, [soundEnabled, enableSound, disableSound]);
 
   const testSound = useCallback(() => {
-    return playBeep();
-  }, [playBeep]);
+    return playNotificationBeep();
+  }, [playNotificationBeep]);
 
   useEffect(() => {
+    // Subscribe to new orders
     const ordersChannel = supabase
-      .channel("admin-orders-notification")
+      .channel("admin-new-orders")
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "orders" },
-        () => {
+        (payload) => {
+          console.log("New order received:", payload);
           setNewOrdersCount((prev) => prev + 1);
           playNotificationSound();
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log("Orders channel status:", status);
+      });
 
+    // Subscribe to recharge requests  
     const rechargeChannel = supabase
-      .channel("admin-recharge-notification")
+      .channel("admin-new-recharge")
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "recharge_requests" },
-        () => {
+        (payload) => {
+          console.log("New recharge request received:", payload);
           setNewOrdersCount((prev) => prev + 1);
           playNotificationSound();
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log("Recharge channel status:", status);
+      });
 
     return () => {
       supabase.removeChannel(ordersChannel);
