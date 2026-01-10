@@ -63,6 +63,7 @@ interface Order {
   product_id: string | null;
   product_option_id: string | null;
   amount: number;
+  total_price?: number;
   status: string;
   created_at: string;
   email: string | null;
@@ -1194,6 +1195,38 @@ const Admin = () => {
 
   // Order handlers
   const handleUpdateOrderStatus = async (id: string, status: string, message?: string) => {
+    // إذا كانت الحالة "مرفوض" - رد الفلوس للعميل أولاً
+    if (status === 'rejected') {
+      // جلب بيانات الطلب
+      const order = orders.find(o => o.id === id);
+      if (order && order.token_id) {
+        // جلب رصيد التوكن الحالي
+        const { data: tokenData } = await supabase
+          .from('tokens')
+          .select('balance')
+          .eq('id', order.token_id)
+          .single();
+
+        if (tokenData) {
+          const refundAmount = Number(order.amount) || Number(order.total_price) || 0;
+          const newBalance = Number(tokenData.balance) + refundAmount;
+          
+          // تحديث رصيد التوكن
+          const { error: balanceError } = await supabase
+            .from('tokens')
+            .update({ balance: newBalance })
+            .eq('id', order.token_id);
+
+          if (balanceError) {
+            toast({ title: 'خطأ', description: 'فشل في رد الرصيد: ' + balanceError.message, variant: 'destructive' });
+            return;
+          }
+          
+          toast({ title: 'تم رد الرصيد', description: `تم إرجاع $${refundAmount} لرصيد العميل` });
+        }
+      }
+    }
+
     const { error } = await supabase
       .from('orders')
       .update({ status, response_message: message || null })
