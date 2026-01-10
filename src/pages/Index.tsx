@@ -1818,33 +1818,36 @@ const Index = () => {
                                   };
                                   return (
                                     <div key={`order-${order.id}`} className="bg-muted/30 rounded-lg p-3 border border-border">
-                                      <div className="flex items-start justify-between gap-2">
-                                        <div className="flex-1 min-w-0">
-                                          <div className="flex items-center gap-2 mb-1">
-                                            <span className="font-mono text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded font-bold">
-                                              #{order.order_number}
+                                                                          <div className="flex items-start justify-between gap-2">
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 mb-1">
+                                          <span className="font-mono text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded font-bold">
+                                            #{order.order_number}
+                                          </span>
+                                          {(order as any).quantity > 1 && (
+                                            <span className="text-xs bg-success/20 text-success px-1.5 py-0.5 rounded font-bold">
+                                              ×{(order as any).quantity}
                                             </span>
-                                          </div>
-                                          <p className="font-medium text-sm truncate">
-                                            {getProductName(order.product_id, order.product_option_id)}
-                                          </p>
-                                          <p className="text-xs text-muted-foreground mt-1">
-                                            {new Date(order.created_at).toLocaleDateString('ar-EG')} - {new Date(order.created_at).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
-                                          </p>
+                                          )}
                                         </div>
-                                        <div className="text-left">
-                                          <span className="font-bold text-primary text-sm">${order.amount}</span>
-                                          <div className={`flex items-center gap-1 mt-1 ${statusInfo.color}`}>
-                                            <StatusIcon className={`w-3 h-3 ${order.status === 'in_progress' ? 'animate-spin' : ''}`} />
-                                            <span className="text-xs font-medium">{statusInfo.label}</span>
-                                          </div>
+                                        <p className="font-medium text-sm truncate">
+                                          {getProductName(order.product_id, order.product_option_id)}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                          {new Date(order.created_at).toLocaleDateString('ar-EG')} - {new Date(order.created_at).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
+                                        </p>
+                                      </div>
+                                      <div className="text-left">
+                                        <span className="font-bold text-primary text-sm">${order.amount}</span>
+                                        {(order as any).quantity > 1 && (
+                                          <p className="text-xs text-muted-foreground">({(order as any).quantity} قطعة)</p>
+                                        )}
+                                        <div className={`flex items-center gap-1 mt-1 ${statusInfo.color}`}>
+                                          <StatusIcon className={`w-3 h-3 ${order.status === 'in_progress' ? 'animate-spin' : ''}`} />
+                                          <span className="text-xs font-medium">{statusInfo.label}</span>
                                         </div>
                                       </div>
-                                      {order.response_message && (
-                                        <p className="text-xs text-muted-foreground mt-2 p-2 bg-background rounded border">
-                                          {order.response_message}
-                                        </p>
-                                      )}
+                                    </div>
                                       {refund && (
                                         <div className="mt-2 p-2 rounded-lg border border-orange-200 bg-orange-50">
                                           <div className="flex items-center justify-between">
