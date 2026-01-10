@@ -53,7 +53,7 @@ interface RechargeRequest {
   status: string;
   created_at: string;
   payment_method: string;
-  admin_notes: string | null;
+  admin_note: string | null;
 }
 
 interface ActiveOrder {
@@ -1717,9 +1717,9 @@ const Index = () => {
                                           </div>
                                         </div>
                                       </div>
-                                      {recharge.admin_notes && (
+                                      {recharge.admin_note && (
                                         <p className="text-xs text-muted-foreground mt-2 p-2 bg-card/50 rounded border border-border">
-                                          {recharge.admin_notes}
+                                          ملاحظة الإدارة: {recharge.admin_note}
                                         </p>
                                       )}
                                     </div>
