@@ -1,102 +1,91 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 const useOrderNotification = () => {
   const [newOrdersCount, setNewOrdersCount] = useState(0);
   const [soundEnabled, setSoundEnabled] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Prepare audio
-  useEffect(() => {
-    const audio = new Audio("/notification.mp3");
-    audio.preload = "auto";
-    audio.volume = 1;
-    audioRef.current = audio;
-
+  // Simple beep using Web Audio API - works everywhere
+  const playBeep = useCallback(() => {
     try {
-      audio.load();
-    } catch {
-      // ignore
-    }
-  }, []);
-
-  const playBeepFallback = useCallback(() => {
-    try {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      const ctx = new AudioCtx();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-
-      osc.type = "sine";
-      osc.frequency.value = 880;
-
-      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.15, ctx.currentTime + 0.01);
-      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.15);
-
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-
-      osc.start();
-      osc.stop(ctx.currentTime + 0.16);
-
-      osc.onended = () => {
-        ctx.close().catch(() => {});
-      };
-    } catch (err) {
-      console.log("Beep fallback failed:", err);
-    }
-  }, []);
-
-  const tryPlayMp3 = useCallback(async () => {
-    const audio = audioRef.current;
-    if (!audio) return false;
-
-    try {
-      audio.currentTime = 0;
-      await audio.play();
+      const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+      const audioCtx = new AudioContext();
+      
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      
+      oscillator.frequency.value = 800;
+      oscillator.type = "sine";
+      
+      gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+      
+      oscillator.start(audioCtx.currentTime);
+      oscillator.stop(audioCtx.currentTime + 0.3);
+      
+      // Second beep
+      setTimeout(() => {
+        try {
+          const osc2 = audioCtx.createOscillator();
+          const gain2 = audioCtx.createGain();
+          
+          osc2.connect(gain2);
+          gain2.connect(audioCtx.destination);
+          
+          osc2.frequency.value = 1000;
+          osc2.type = "sine";
+          
+          gain2.gain.setValueAtTime(0.3, audioCtx.currentTime);
+          gain2.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+          
+          osc2.start(audioCtx.currentTime);
+          osc2.stop(audioCtx.currentTime + 0.3);
+        } catch (e) {
+          console.log("Second beep failed", e);
+        }
+      }, 150);
+      
       return true;
     } catch (err) {
-      console.log("Could not play notification mp3:", err);
+      console.log("Beep failed:", err);
       return false;
     }
   }, []);
 
-  const testSound = useCallback(async (): Promise<"mp3" | "beep"> => {
-    const ok = await tryPlayMp3();
-    if (ok) return "mp3";
-    playBeepFallback();
-    return "beep";
-  }, [tryPlayMp3, playBeepFallback]);
+  const playNotificationSound = useCallback(() => {
+    if (soundEnabled) {
+      playBeep();
+    }
+  }, [soundEnabled, playBeep]);
 
-  // Must be called from a user click
-  const enableSound = useCallback(async () => {
+  const enableSound = useCallback(() => {
     setSoundEnabled(true);
-    await testSound();
-  }, [testSound]);
+    // Play test beep immediately
+    playBeep();
+  }, [playBeep]);
 
   const disableSound = useCallback(() => {
     setSoundEnabled(false);
   }, []);
 
-  const toggleSound = useCallback(async () => {
+  const toggleSound = useCallback(() => {
     if (soundEnabled) {
       disableSound();
-      return "beep" as const;
+    } else {
+      enableSound();
     }
-    await enableSound();
-    // enableSound already runs testSound; run one more quick test result for UI
-    return await testSound();
-  }, [soundEnabled, enableSound, disableSound, testSound]);
+  }, [soundEnabled, enableSound, disableSound]);
 
-  const playNotificationSound = useCallback(() => {
-    if (!soundEnabled) return;
-    void testSound();
-  }, [soundEnabled, testSound]);
+  const testSound = useCallback(() => {
+    return playBeep();
+  }, [playBeep]);
 
   useEffect(() => {
     const ordersChannel = supabase
-      .channel("new-orders")
+      .channel("admin-orders-notification")
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "orders" },
@@ -108,7 +97,7 @@ const useOrderNotification = () => {
       .subscribe();
 
     const rechargeChannel = supabase
-      .channel("new-recharge")
+      .channel("admin-recharge-notification")
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "recharge_requests" },
