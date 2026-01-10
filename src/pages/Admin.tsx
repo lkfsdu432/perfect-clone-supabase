@@ -16,6 +16,7 @@ import { RechargeManagement } from '@/components/admin/RechargeManagement';
 import { PaymentMethodsManagement } from '@/components/admin/PaymentMethodsManagement';
 import AdminUsersManagement from '@/components/admin/AdminUsersManagement';
 import NewsManagement from '@/components/admin/NewsManagement';
+import TokenActivityLog from '@/components/admin/TokenActivityLog';
 
 interface Product {
   id: string;
@@ -692,7 +693,7 @@ interface UserPermissions {
 }
 
 const Admin = () => {
-  const [activeTab, setActiveTab] = useState<'products' | 'tokens' | 'orders' | 'refunds' | 'users' | 'coupons' | 'recharges' | 'payment_methods' | 'admin_users' | 'news'>('orders');
+  const [activeTab, setActiveTab] = useState<'products' | 'tokens' | 'orders' | 'refunds' | 'users' | 'coupons' | 'recharges' | 'payment_methods' | 'admin_users' | 'news' | 'token_log'>('orders');
   const [products, setProducts] = useState<Product[]>([]);
   const [productOptions, setProductOptions] = useState<ProductOption[]>([]);
   const [tokens, setTokens] = useState<Token[]>([]);
@@ -1578,6 +1579,7 @@ const Admin = () => {
             { id: 'recharges', label: 'طلبات الشحن', icon: CreditCard, count: null, permission: 'can_manage_tokens' },
             { id: 'products', label: 'الأقسام', icon: Package, count: products.length, permission: 'can_manage_products' },
             { id: 'tokens', label: 'التوكنات', icon: Key, count: tokens.length, permission: 'can_manage_tokens' },
+            { id: 'token_log', label: 'سجل التوكنات', icon: Database, count: null, permission: 'can_manage_tokens' },
             { id: 'refunds', label: 'الاستردادات', icon: RotateCcw, count: refundRequests.filter(r => r.status === 'pending').length, permission: 'can_manage_refunds' },
             { id: 'payment_methods', label: 'طرق الدفع', icon: Wallet, count: null, permission: 'can_manage_tokens' },
             { id: 'coupons', label: 'الكوبونات', icon: Ticket, count: null, permission: 'can_manage_coupons' },
@@ -1588,7 +1590,7 @@ const Admin = () => {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as 'products' | 'tokens' | 'orders' | 'refunds' | 'users' | 'coupons' | 'recharges' | 'payment_methods' | 'admin_users' | 'news')}
+                onClick={() => setActiveTab(tab.id as 'products' | 'tokens' | 'orders' | 'refunds' | 'users' | 'coupons' | 'recharges' | 'payment_methods' | 'admin_users' | 'news' | 'token_log')}
                 className={`flex items-center gap-2 px-5 py-3 rounded-xl font-medium transition-all whitespace-nowrap ${
                   activeTab === tab.id
                     ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20'
@@ -2375,6 +2377,9 @@ const Admin = () => {
 
       {/* News Tab */}
       {activeTab === 'news' && <NewsManagement />}
+
+      {/* Token Activity Log Tab */}
+      {activeTab === 'token_log' && <TokenActivityLog />}
     </div>
   );
 };
