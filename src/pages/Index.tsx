@@ -815,6 +815,52 @@ const Index = () => {
     setIsLoading(false);
   };
 
+  // Real-time تحديث سجل الطلبات والرصيد بعد عرض الرصيد (بدون ريفريش)
+  useEffect(() => {
+    if (!showBalance || !tokenData?.id) return;
+
+    const ordersChannel = supabase
+      .channel(`token-orders-${tokenData.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'orders',
+        filter: `token_id=eq.${tokenData.id}`,
+      }, async () => {
+        const { data: ordersData } = await supabase
+          .from('orders')
+          .select('*')
+          .eq('token_id', tokenData.id)
+          .order('created_at', { ascending: false });
+
+        setTokenOrders((ordersData || []).map((o: any) => ({
+          ...o,
+          amount: o.amount || o.total_price,
+        })));
+      })
+      .subscribe();
+
+    const tokenChannel = supabase
+      .channel(`token-balance-${tokenData.id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'tokens',
+        filter: `id=eq.${tokenData.id}`,
+      }, (payload) => {
+        const updated = payload.new as any;
+        if (updated?.balance !== undefined && updated?.balance !== null) {
+          setTokenBalance(Number(updated.balance));
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(ordersChannel);
+      supabase.removeChannel(tokenChannel);
+    };
+  }, [showBalance, tokenData?.id]);
+
   const getStatusInfo = (status: string) => {
     switch (status) {
       case 'completed':
