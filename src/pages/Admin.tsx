@@ -1195,8 +1195,8 @@ const Admin = () => {
 
   // Order handlers
   const handleUpdateOrderStatus = async (id: string, status: string, message?: string) => {
-    // إذا كانت الحالة "مرفوض" - رد الفلوس للعميل أولاً
-    if (status === 'rejected') {
+    // إذا كانت الحالة "مرفوض" أو "ملغي" - رد الفلوس للعميل أولاً
+    if (status === 'rejected' || status === 'cancelled') {
       // جلب بيانات الطلب
       const order = orders.find(o => o.id === id);
       if (order && order.token_id) {
