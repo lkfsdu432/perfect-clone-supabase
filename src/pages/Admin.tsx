@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import {
   Package, Key, ShoppingBag, LogOut, Plus, Trash2, Edit2, Save, X,
   ChevronDown, ChevronUp, Settings, Copy, Eye, EyeOff, Clock, CheckCircle2,
-  XCircle, Loader2, LayoutGrid, Zap, Database, Bell, BellOff, TrendingUp, DollarSign, Users, MessageCircle, Link, RotateCcw, Ban, Ticket, Shield, CreditCard, Wallet, Newspaper
+  XCircle, Loader2, LayoutGrid, Zap, Database, Bell, BellOff, Volume2, VolumeX, TrendingUp, DollarSign, Users, MessageCircle, Link, RotateCcw, Ban, Ticket, Shield, CreditCard, Wallet, Newspaper
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import useOrderNotification from '@/hooks/useOrderNotification';
@@ -750,7 +750,7 @@ const Admin = () => {
   const [tokenSearch, setTokenSearch] = useState<string>('');
 
   // Use order notification hook
-  const { newOrdersCount, clearNotifications, soundEnabled, toggleSound } = useOrderNotification();
+  const { newOrdersCount, clearNotifications, soundEnabled, toggleSound, testSound } = useOrderNotification();
 
   // Handle new order notifications
   useEffect(() => {
@@ -1503,19 +1503,48 @@ const Admin = () => {
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => {
-                  toggleSound();
-                  setNotificationsEnabled(!notificationsEnabled);
+                onClick={() => setNotificationsEnabled(!notificationsEnabled)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
+                  notificationsEnabled
+                    ? 'bg-success/10 text-success hover:bg-success/20'
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                }`}
+                title={notificationsEnabled ? 'إيقاف تحديث الإشعارات' : 'تفعيل تحديث الإشعارات'}
+              >
+                {notificationsEnabled ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
+                <span className="hidden sm:inline">{notificationsEnabled ? 'الإشعارات' : 'موقوفة'}</span>
+              </button>
+
+              <button
+                onClick={async () => {
+                  if (!soundEnabled) {
+                    await toggleSound();
+                    toast({ title: 'تم تفعيل الصوت', description: 'لو وصل طلب جديد هتسمع إشعار.' });
+                  } else {
+                    await toggleSound();
+                    toast({ title: 'تم إيقاف الصوت' });
+                  }
                 }}
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
                   soundEnabled
-                    ? 'bg-success/10 text-success hover:bg-success/20'
+                    ? 'bg-primary/10 text-primary hover:bg-primary/20'
                     : 'bg-muted text-muted-foreground hover:bg-muted/80'
                 }`}
                 title={soundEnabled ? 'إيقاف صوت الإشعارات' : 'تفعيل صوت الإشعارات'}
               >
-                {soundEnabled ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
-                <span className="hidden sm:inline">{soundEnabled ? 'الصوت مفعل 🔔' : 'الصوت مغلق'}</span>
+                {soundEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
+                <span className="hidden sm:inline">{soundEnabled ? 'الصوت مفعل' : 'الصوت مغلق'}</span>
+              </button>
+
+              <button
+                onClick={async () => {
+                  await testSound();
+                }}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted text-muted-foreground hover:bg-muted/80 transition-colors"
+                title="اختبار الصوت"
+              >
+                <Zap className="w-5 h-5" />
+                <span className="hidden sm:inline">اختبار</span>
               </button>
               <button
                 onClick={async () => {
