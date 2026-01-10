@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   Search, ShoppingBag, Wallet, RotateCcw, Clock, CheckCircle2, 
-  XCircle, Loader2, ChevronDown, ChevronUp, History, DollarSign 
+  XCircle, Loader2, ChevronDown, ChevronUp, History, DollarSign,
+  Filter, Calendar, RefreshCw
 } from 'lucide-react';
 
 interface TokenActivity {
@@ -29,12 +30,19 @@ interface TokenWithActivities {
   total_refunded: number;
 }
 
+type ActivityTypeFilter = 'all' | 'order' | 'recharge' | 'refund';
+type StatusFilter = 'all' | 'completed' | 'pending' | 'rejected';
+
 const TokenActivityLog = () => {
   const [tokens, setTokens] = useState<TokenWithActivities[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedToken, setExpandedToken] = useState<string | null>(null);
-  const [selectedToken, setSelectedToken] = useState<TokenWithActivities | null>(null);
+  
+  // Filters
+  const [activityTypeFilter, setActivityTypeFilter] = useState<ActivityTypeFilter>('all');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest' | 'highest_balance' | 'lowest_balance'>('newest');
 
   useEffect(() => {
     fetchTokensWithActivities();
@@ -43,7 +51,6 @@ const TokenActivityLog = () => {
   const fetchTokensWithActivities = async () => {
     setIsLoading(true);
     try {
-      // Fetch all tokens
       const { data: tokensData, error: tokensError } = await supabase
         .from('tokens')
         .select('*')
@@ -51,31 +58,26 @@ const TokenActivityLog = () => {
 
       if (tokensError) throw tokensError;
 
-      // Fetch all orders
       const { data: ordersData } = await supabase
         .from('orders')
         .select('*')
         .order('created_at', { ascending: false });
 
-      // Fetch all recharge requests
       const { data: rechargesData } = await supabase
         .from('recharge_requests')
         .select('*')
         .order('created_at', { ascending: false });
 
-      // Fetch all refund requests
       const { data: refundsData } = await supabase
         .from('refund_requests')
         .select('*')
         .order('created_at', { ascending: false });
 
-      // Process tokens with their activities
       const tokensWithActivities: TokenWithActivities[] = (tokensData || []).map((token: any) => {
         const tokenOrders = (ordersData || []).filter((o: any) => o.token_id === token.id);
         const tokenRecharges = (rechargesData || []).filter((r: any) => r.token_id === token.id);
         const tokenRefunds = (refundsData || []).filter((r: any) => r.token_id === token.id);
 
-        // Build activities list
         const activities: TokenActivity[] = [];
 
         tokenOrders.forEach((order: any) => {
@@ -114,7 +116,6 @@ const TokenActivityLog = () => {
           });
         });
 
-        // Sort by date
         activities.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
         return {
@@ -148,16 +149,16 @@ const TokenActivityLog = () => {
     switch (status) {
       case 'completed':
       case 'approved':
-        return <CheckCircle2 className="w-4 h-4 text-success" />;
+        return <CheckCircle2 className="w-3.5 h-3.5 text-success" />;
       case 'pending':
-        return <Clock className="w-4 h-4 text-warning" />;
+        return <Clock className="w-3.5 h-3.5 text-warning" />;
       case 'in_progress':
-        return <Loader2 className="w-4 h-4 text-info animate-spin" />;
+        return <Loader2 className="w-3.5 h-3.5 text-info animate-spin" />;
       case 'rejected':
       case 'cancelled':
-        return <XCircle className="w-4 h-4 text-destructive" />;
+        return <XCircle className="w-3.5 h-3.5 text-destructive" />;
       default:
-        return <Clock className="w-4 h-4 text-muted-foreground" />;
+        return <Clock className="w-3.5 h-3.5 text-muted-foreground" />;
     }
   };
 
@@ -193,183 +194,333 @@ const TokenActivityLog = () => {
 
   const getTypeColor = (type: string) => {
     switch (type) {
-      case 'order': return 'bg-primary/10 text-primary border-primary/30';
-      case 'recharge': return 'bg-success/10 text-success border-success/30';
-      case 'refund': return 'bg-warning/10 text-warning border-warning/30';
+      case 'order': return 'bg-primary/10 text-primary border-primary/20';
+      case 'recharge': return 'bg-success/10 text-success border-success/20';
+      case 'refund': return 'bg-warning/10 text-warning border-warning/20';
       default: return 'bg-muted text-muted-foreground';
     }
   };
 
-  const filteredTokens = tokens.filter(token => 
-    token.token.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Filter activities within each token
+  const filterActivities = (activities: TokenActivity[]) => {
+    return activities.filter(activity => {
+      // Type filter
+      if (activityTypeFilter !== 'all' && activity.type !== activityTypeFilter) return false;
+      
+      // Status filter
+      if (statusFilter !== 'all') {
+        if (statusFilter === 'completed' && !['completed', 'approved'].includes(activity.status)) return false;
+        if (statusFilter === 'pending' && activity.status !== 'pending') return false;
+        if (statusFilter === 'rejected' && !['rejected', 'cancelled'].includes(activity.status)) return false;
+      }
+      
+      return true;
+    });
+  };
+
+  // Filter and sort tokens
+  const filteredTokens = tokens
+    .filter(token => token.token.toLowerCase().includes(searchTerm.toLowerCase()))
+    .filter(token => {
+      // If filters are applied, only show tokens that have matching activities
+      if (activityTypeFilter !== 'all' || statusFilter !== 'all') {
+        return filterActivities(token.activities).length > 0;
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      switch (sortOrder) {
+        case 'newest':
+          return 0; // Already sorted by created_at desc
+        case 'oldest':
+          return 0; // Would need created_at field
+        case 'highest_balance':
+          return b.balance - a.balance;
+        case 'lowest_balance':
+          return a.balance - b.balance;
+        default:
+          return 0;
+      }
+    });
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <div className="text-center">
+          <Loader2 className="w-10 h-10 animate-spin text-primary mx-auto mb-3" />
+          <p className="text-sm text-muted-foreground">جاري تحميل السجل...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-        <input
-          type="text"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="ابحث بالتوكن..."
-          className="input-field w-full pr-10"
-        />
+    <div className="space-y-6">
+      {/* Header with Search & Filters */}
+      <div className="bg-card border border-border rounded-2xl p-4 space-y-4">
+        {/* Search Row */}
+        <div className="flex flex-col md:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="ابحث بالتوكن..."
+              className="input-field w-full pr-10"
+            />
+          </div>
+          <button
+            onClick={fetchTokensWithActivities}
+            className="flex items-center gap-2 px-4 py-2.5 bg-muted hover:bg-muted/80 rounded-xl transition-colors text-sm font-medium"
+          >
+            <RefreshCw className="w-4 h-4" />
+            تحديث
+          </button>
+        </div>
+
+        {/* Filters Row */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Filter className="w-4 h-4" />
+            <span>فلترة:</span>
+          </div>
+
+          {/* Activity Type Filter */}
+          <div className="flex gap-1 p-1 bg-muted/50 rounded-xl">
+            {[
+              { value: 'all', label: 'الكل', icon: null },
+              { value: 'order', label: 'طلبات', icon: ShoppingBag },
+              { value: 'recharge', label: 'شحن', icon: Wallet },
+              { value: 'refund', label: 'استرداد', icon: RotateCcw },
+            ].map((option) => (
+              <button
+                key={option.value}
+                onClick={() => setActivityTypeFilter(option.value as ActivityTypeFilter)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  activityTypeFilter === option.value
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                }`}
+              >
+                {option.icon && <option.icon className="w-3.5 h-3.5" />}
+                {option.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Status Filter */}
+          <div className="flex gap-1 p-1 bg-muted/50 rounded-xl">
+            {[
+              { value: 'all', label: 'كل الحالات' },
+              { value: 'completed', label: 'مكتمل' },
+              { value: 'pending', label: 'قيد الانتظار' },
+              { value: 'rejected', label: 'مرفوض' },
+            ].map((option) => (
+              <button
+                key={option.value}
+                onClick={() => setStatusFilter(option.value as StatusFilter)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  statusFilter === option.value
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Sort */}
+          <select
+            value={sortOrder}
+            onChange={(e) => setSortOrder(e.target.value as any)}
+            className="px-3 py-1.5 rounded-xl text-xs font-medium bg-muted/50 border-0 text-muted-foreground focus:ring-1 focus:ring-primary"
+          >
+            <option value="newest">الأحدث</option>
+            <option value="highest_balance">أعلى رصيد</option>
+            <option value="lowest_balance">أقل رصيد</option>
+          </select>
+        </div>
       </div>
 
       {/* Stats Summary */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-card border border-border rounded-xl p-4 text-center">
+        <div className="bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 rounded-xl p-4">
+          <div className="flex items-center gap-2 text-primary mb-2">
+            <History className="w-4 h-4" />
+            <span className="text-xs font-medium">التوكنات</span>
+          </div>
           <p className="text-2xl font-bold text-primary">{tokens.length}</p>
-          <p className="text-xs text-muted-foreground">إجمالي التوكنات</p>
         </div>
-        <div className="bg-card border border-border rounded-xl p-4 text-center">
+        <div className="bg-gradient-to-br from-success/10 to-success/5 border border-success/20 rounded-xl p-4">
+          <div className="flex items-center gap-2 text-success mb-2">
+            <Wallet className="w-4 h-4" />
+            <span className="text-xs font-medium">إجمالي الشحن</span>
+          </div>
           <p className="text-2xl font-bold text-success">
             ${tokens.reduce((sum, t) => sum + t.total_recharged, 0).toFixed(0)}
           </p>
-          <p className="text-xs text-muted-foreground">إجمالي الشحن</p>
         </div>
-        <div className="bg-card border border-border rounded-xl p-4 text-center">
+        <div className="bg-gradient-to-br from-info/10 to-info/5 border border-info/20 rounded-xl p-4">
+          <div className="flex items-center gap-2 text-info mb-2">
+            <ShoppingBag className="w-4 h-4" />
+            <span className="text-xs font-medium">إجمالي المشتريات</span>
+          </div>
           <p className="text-2xl font-bold text-info">
             ${tokens.reduce((sum, t) => sum + t.total_spent, 0).toFixed(0)}
           </p>
-          <p className="text-xs text-muted-foreground">إجمالي المشتريات</p>
         </div>
-        <div className="bg-card border border-border rounded-xl p-4 text-center">
+        <div className="bg-gradient-to-br from-warning/10 to-warning/5 border border-warning/20 rounded-xl p-4">
+          <div className="flex items-center gap-2 text-warning mb-2">
+            <RotateCcw className="w-4 h-4" />
+            <span className="text-xs font-medium">إجمالي الاستردادات</span>
+          </div>
           <p className="text-2xl font-bold text-warning">
             ${tokens.reduce((sum, t) => sum + t.total_refunded, 0).toFixed(0)}
           </p>
-          <p className="text-xs text-muted-foreground">إجمالي الاستردادات</p>
         </div>
       </div>
 
       {/* Tokens List */}
       <div className="space-y-3">
         {filteredTokens.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">
-            <History className="w-12 h-12 mx-auto mb-3 opacity-50" />
-            <p>لا توجد توكنات</p>
+          <div className="bg-card border border-border rounded-2xl p-12 text-center">
+            <History className="w-16 h-16 mx-auto mb-4 text-muted-foreground/30" />
+            <p className="text-lg font-medium text-muted-foreground mb-2">لا توجد توكنات</p>
+            <p className="text-sm text-muted-foreground/70">جرب تغيير الفلتر أو البحث</p>
           </div>
         ) : (
-          filteredTokens.map((token) => (
-            <div
-              key={token.id}
-              className="bg-card border border-border rounded-xl overflow-hidden"
-            >
-              {/* Token Header */}
+          filteredTokens.map((token) => {
+            const filteredActivities = filterActivities(token.activities);
+            
+            return (
               <div
-                className="p-4 cursor-pointer hover:bg-muted/50 transition-colors"
-                onClick={() => setExpandedToken(expandedToken === token.id ? null : token.id)}
+                key={token.id}
+                className="bg-card border border-border rounded-2xl overflow-hidden transition-shadow hover:shadow-lg"
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-3 h-3 rounded-full ${token.is_blocked ? 'bg-destructive' : 'bg-success'}`} />
-                    <span className="font-mono font-bold text-lg">{token.token}</span>
-                    <span className={`px-2 py-0.5 rounded-lg text-sm font-bold ${
-                      token.balance > 0 ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'
-                    }`}>
-                      ${token.balance}
+                {/* Token Header */}
+                <div
+                  className="p-4 cursor-pointer hover:bg-muted/30 transition-colors"
+                  onClick={() => setExpandedToken(expandedToken === token.id ? null : token.id)}
+                >
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-2.5 h-2.5 rounded-full ${token.is_blocked ? 'bg-destructive' : 'bg-success'}`} />
+                      <span className="font-mono font-bold text-lg tracking-wide">{token.token}</span>
+                      <div className={`px-2.5 py-1 rounded-lg text-sm font-bold ${
+                        token.balance > 0 
+                          ? 'bg-success/10 text-success border border-success/20' 
+                          : 'bg-muted text-muted-foreground'
+                      }`}>
+                        ${token.balance}
+                      </div>
+                      {token.is_blocked && (
+                        <span className="px-2 py-0.5 bg-destructive/10 text-destructive text-xs rounded-lg font-medium">
+                          محظور
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="hidden md:flex items-center gap-3 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1.5 bg-primary/5 px-2 py-1 rounded-lg">
+                          <ShoppingBag className="w-3.5 h-3.5 text-primary" />
+                          <span className="font-medium">{token.total_orders}</span>
+                        </span>
+                        <span className="flex items-center gap-1.5 bg-success/5 px-2 py-1 rounded-lg">
+                          <Wallet className="w-3.5 h-3.5 text-success" />
+                          <span className="font-medium">{token.total_recharges}</span>
+                        </span>
+                        <span className="flex items-center gap-1.5 bg-warning/5 px-2 py-1 rounded-lg">
+                          <RotateCcw className="w-3.5 h-3.5 text-warning" />
+                          <span className="font-medium">{token.total_refunds}</span>
+                        </span>
+                      </div>
+                      <div className={`p-2 rounded-lg transition-colors ${expandedToken === token.id ? 'bg-primary/10' : 'bg-muted/50'}`}>
+                        {expandedToken === token.id ? (
+                          <ChevronUp className="w-5 h-5 text-primary" />
+                        ) : (
+                          <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Mini Stats */}
+                  <div className="flex items-center gap-4 mt-3 pt-3 border-t border-border/50">
+                    <span className="text-xs">
+                      <span className="text-muted-foreground">شحن: </span>
+                      <span className="text-success font-bold">${token.total_recharged}</span>
+                    </span>
+                    <span className="text-xs">
+                      <span className="text-muted-foreground">مشتريات: </span>
+                      <span className="text-info font-bold">${token.total_spent}</span>
+                    </span>
+                    <span className="text-xs">
+                      <span className="text-muted-foreground">استرداد: </span>
+                      <span className="text-warning font-bold">${token.total_refunded}</span>
                     </span>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <div className="hidden md:flex items-center gap-4 text-sm text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <ShoppingBag className="w-4 h-4" />
-                        {token.total_orders}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Wallet className="w-4 h-4" />
-                        {token.total_recharges}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <RotateCcw className="w-4 h-4" />
-                        {token.total_refunds}
-                      </span>
-                    </div>
-                    {expandedToken === token.id ? (
-                      <ChevronUp className="w-5 h-5 text-muted-foreground" />
+                </div>
+
+                {/* Activities List */}
+                {expandedToken === token.id && (
+                  <div className="border-t border-border bg-muted/20">
+                    {filteredActivities.length === 0 ? (
+                      <div className="p-8 text-center text-muted-foreground text-sm">
+                        لا توجد حركات مطابقة للفلتر
+                      </div>
                     ) : (
-                      <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                      <div className="max-h-[400px] overflow-y-auto divide-y divide-border/50">
+                        {filteredActivities.map((activity) => (
+                          <div
+                            key={activity.id}
+                            className="px-4 py-3 flex items-center justify-between gap-4 hover:bg-muted/40 transition-colors"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={`p-2.5 rounded-xl border ${getTypeColor(activity.type)}`}>
+                                {getTypeIcon(activity.type)}
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium text-sm">{getTypeLabel(activity.type)}</span>
+                                  <span className="text-xs text-muted-foreground">{activity.details}</span>
+                                </div>
+                                <div className="flex items-center gap-2 mt-1">
+                                  {getStatusIcon(activity.status)}
+                                  <span className="text-xs text-muted-foreground">
+                                    {getStatusLabel(activity.status)}
+                                  </span>
+                                  <span className="text-xs text-muted-foreground/50">•</span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {new Date(activity.created_at).toLocaleDateString('ar-EG')} - {new Date(activity.created_at).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="text-left">
+                              <span className={`font-bold ${
+                                activity.balance_change > 0 
+                                  ? 'text-success' 
+                                  : activity.balance_change < 0 
+                                    ? 'text-destructive' 
+                                    : 'text-muted-foreground'
+                              }`}>
+                                {activity.balance_change > 0 ? '+' : ''}{activity.balance_change !== 0 ? `$${activity.balance_change}` : '-'}
+                              </span>
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                ${activity.amount}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
-                </div>
-
-                {/* Mini Stats */}
-                <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                  <span>شحن: <span className="text-success font-bold">${token.total_recharged}</span></span>
-                  <span>مشتريات: <span className="text-info font-bold">${token.total_spent}</span></span>
-                  <span>استرداد: <span className="text-warning font-bold">${token.total_refunded}</span></span>
-                </div>
+                )}
               </div>
-
-              {/* Activities List */}
-              {expandedToken === token.id && (
-                <div className="border-t border-border">
-                  {token.activities.length === 0 ? (
-                    <div className="p-6 text-center text-muted-foreground text-sm">
-                      لا توجد حركات لهذا التوكن
-                    </div>
-                  ) : (
-                    <div className="max-h-96 overflow-y-auto">
-                      {token.activities.map((activity, index) => (
-                        <div
-                          key={activity.id}
-                          className={`px-4 py-3 flex items-center justify-between gap-4 ${
-                            index !== token.activities.length - 1 ? 'border-b border-border/50' : ''
-                          } hover:bg-muted/30 transition-colors`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className={`p-2 rounded-lg border ${getTypeColor(activity.type)}`}>
-                              {getTypeIcon(activity.type)}
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <span className="font-medium text-sm">{getTypeLabel(activity.type)}</span>
-                                <span className="text-xs text-muted-foreground">{activity.details}</span>
-                              </div>
-                              <div className="flex items-center gap-2 mt-1">
-                                {getStatusIcon(activity.status)}
-                                <span className="text-xs text-muted-foreground">
-                                  {getStatusLabel(activity.status)}
-                                </span>
-                                <span className="text-xs text-muted-foreground">•</span>
-                                <span className="text-xs text-muted-foreground">
-                                  {new Date(activity.created_at).toLocaleDateString('ar-EG')} - {new Date(activity.created_at).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="text-left">
-                            <span className={`font-bold text-sm ${
-                              activity.balance_change > 0 
-                                ? 'text-success' 
-                                : activity.balance_change < 0 
-                                  ? 'text-destructive' 
-                                  : 'text-muted-foreground'
-                            }`}>
-                              {activity.balance_change > 0 ? '+' : ''}{activity.balance_change !== 0 ? `$${activity.balance_change}` : '-'}
-                            </span>
-                            <p className="text-xs text-muted-foreground">
-                              ${activity.amount}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>

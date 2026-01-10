@@ -1572,62 +1572,79 @@ const Admin = () => {
       </header>
 
       <div className="container mx-auto px-4 py-6">
-        {/* Tabs */}
-        <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-          {[
-            { id: 'orders', label: 'الطلبات', icon: ShoppingBag, count: orders.length, permission: 'can_manage_orders' },
-            { id: 'recharges', label: 'طلبات الشحن', icon: CreditCard, count: null, permission: 'can_manage_tokens' },
-            { id: 'products', label: 'الأقسام', icon: Package, count: products.length, permission: 'can_manage_products' },
-            { id: 'tokens', label: 'التوكنات', icon: Key, count: tokens.length, permission: 'can_manage_tokens' },
-            { id: 'token_log', label: 'سجل التوكنات', icon: Database, count: null, permission: 'can_manage_tokens' },
-            { id: 'refunds', label: 'الاستردادات', icon: RotateCcw, count: refundRequests.filter(r => r.status === 'pending').length, permission: 'can_manage_refunds' },
-            { id: 'payment_methods', label: 'طرق الدفع', icon: Wallet, count: null, permission: 'can_manage_tokens' },
-            { id: 'coupons', label: 'الكوبونات', icon: Ticket, count: null, permission: 'can_manage_coupons' },
-            { id: 'news', label: 'الأخبار', icon: Newspaper, count: null, permission: 'can_manage_products' },
-            { id: 'admin_users', label: 'مدراء النظام', icon: Users, count: null, permission: 'can_manage_users' },
-          ].filter(tab => isAdmin || (userPermissions && userPermissions[tab.permission as keyof UserPermissions])).map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as 'products' | 'tokens' | 'orders' | 'refunds' | 'users' | 'coupons' | 'recharges' | 'payment_methods' | 'admin_users' | 'news' | 'token_log')}
-                className={`flex items-center gap-2 px-5 py-3 rounded-xl font-medium transition-all whitespace-nowrap ${
-                  activeTab === tab.id
-                    ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20'
-                    : 'bg-card hover:bg-muted border border-border'
-                }`}
-              >
-                <Icon className="w-5 h-5" />
-                <span>{tab.label}</span>
-                {tab.count !== null && (
-                  <span className={`px-2 py-0.5 rounded-full text-xs ${
-                    activeTab === tab.id ? 'bg-primary-foreground/20' : 'bg-muted'
-                  }`}>
-                    {tab.count}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+        {/* Professional Tabs */}
+        <div className="bg-card/80 backdrop-blur-sm border border-border rounded-2xl p-1.5 mb-6 overflow-x-auto">
+          <div className="flex gap-1 min-w-max">
+            {[
+              { id: 'orders', label: 'الطلبات', icon: ShoppingBag, count: orders.length, permission: 'can_manage_orders' },
+              { id: 'recharges', label: 'طلبات الشحن', icon: CreditCard, count: null, permission: 'can_manage_tokens' },
+              { id: 'products', label: 'الأقسام', icon: Package, count: products.length, permission: 'can_manage_products' },
+              { id: 'tokens', label: 'التوكنات', icon: Key, count: tokens.length, permission: 'can_manage_tokens' },
+              { id: 'token_log', label: 'سجل التوكنات', icon: Database, count: null, permission: 'can_manage_tokens' },
+              { id: 'refunds', label: 'الاستردادات', icon: RotateCcw, count: refundRequests.filter(r => r.status === 'pending').length, permission: 'can_manage_refunds' },
+              { id: 'payment_methods', label: 'طرق الدفع', icon: Wallet, count: null, permission: 'can_manage_tokens' },
+              { id: 'coupons', label: 'الكوبونات', icon: Ticket, count: null, permission: 'can_manage_coupons' },
+              { id: 'news', label: 'الأخبار', icon: Newspaper, count: null, permission: 'can_manage_products' },
+              { id: 'admin_users', label: 'مدراء النظام', icon: Users, count: null, permission: 'can_manage_users' },
+            ].filter(tab => isAdmin || (userPermissions && userPermissions[tab.permission as keyof UserPermissions])).map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as 'products' | 'tokens' | 'orders' | 'refunds' | 'users' | 'coupons' | 'recharges' | 'payment_methods' | 'admin_users' | 'news' | 'token_log')}
+                  className={`relative flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
+                    isActive
+                      ? 'bg-primary text-primary-foreground shadow-md'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span>{tab.label}</span>
+                  {tab.count !== null && tab.count > 0 && (
+                    <span className={`min-w-5 h-5 flex items-center justify-center px-1.5 rounded-full text-xs font-bold ${
+                      isActive 
+                        ? 'bg-primary-foreground/20 text-primary-foreground' 
+                        : 'bg-primary/10 text-primary'
+                    }`}>
+                      {tab.count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        {/* Today's Statistics */}
-        <div className="flex flex-wrap gap-3 mb-6">
-          <div className="bg-card/50 border border-border rounded-lg px-4 py-2 flex items-center gap-2">
-            <span className="text-muted-foreground text-sm">أرباح:</span>
-            <span className="font-bold text-success">${todayStats.totalEarnings}</span>
+        {/* Quick Stats Bar */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+          <div className="bg-gradient-to-br from-success/10 to-success/5 border border-success/20 rounded-xl px-4 py-3">
+            <div className="flex items-center gap-2 text-success mb-1">
+              <DollarSign className="w-4 h-4" />
+              <span className="text-xs font-medium">أرباح اليوم</span>
+            </div>
+            <span className="text-xl font-bold text-success">${todayStats.totalEarnings}</span>
           </div>
-          <div className="bg-card/50 border border-border rounded-lg px-4 py-2 flex items-center gap-2">
-            <span className="text-muted-foreground text-sm">طلبات:</span>
-            <span className="font-bold text-primary">{todayStats.totalOrders}</span>
+          <div className="bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 rounded-xl px-4 py-3">
+            <div className="flex items-center gap-2 text-primary mb-1">
+              <ShoppingBag className="w-4 h-4" />
+              <span className="text-xs font-medium">الطلبات</span>
+            </div>
+            <span className="text-xl font-bold text-primary">{todayStats.totalOrders}</span>
           </div>
-          <div className="bg-card/50 border border-border rounded-lg px-4 py-2 flex items-center gap-2">
-            <span className="text-muted-foreground text-sm">مكتملة:</span>
-            <span className="font-bold text-info">{todayStats.completedOrders}</span>
+          <div className="bg-gradient-to-br from-info/10 to-info/5 border border-info/20 rounded-xl px-4 py-3">
+            <div className="flex items-center gap-2 text-info mb-1">
+              <CheckCircle2 className="w-4 h-4" />
+              <span className="text-xs font-medium">مكتملة</span>
+            </div>
+            <span className="text-xl font-bold text-info">{todayStats.completedOrders}</span>
           </div>
-          <div className="bg-card/50 border border-border rounded-lg px-4 py-2 flex items-center gap-2">
-            <span className="text-muted-foreground text-sm">شحنات:</span>
-            <span className="font-bold text-warning">{todayStats.totalRecharges}</span>
+          <div className="bg-gradient-to-br from-warning/10 to-warning/5 border border-warning/20 rounded-xl px-4 py-3">
+            <div className="flex items-center gap-2 text-warning mb-1">
+              <Wallet className="w-4 h-4" />
+              <span className="text-xs font-medium">شحنات</span>
+            </div>
+            <span className="text-xl font-bold text-warning">{todayStats.totalRecharges}</span>
           </div>
         </div>
 
