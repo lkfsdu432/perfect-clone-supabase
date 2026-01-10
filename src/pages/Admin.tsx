@@ -835,6 +835,85 @@ const Admin = () => {
     }
   }, [activeTab, isLoading]);
 
+  // Real-time subscriptions للتحديث التلقائي
+  useEffect(() => {
+    if (isLoading) return;
+
+    // الاشتراك في تحديثات الطلبات
+    const ordersChannel = supabase
+      .channel('admin-orders-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
+        console.log('Orders change:', payload);
+        // تحديث الطلبات
+        supabase.from('orders').select('*').order('created_at', { ascending: false }).then(({ data }) => {
+          setOrders(data || []);
+        });
+        // تحديث الإحصائيات
+        fetchTodayStats();
+      })
+      .subscribe();
+
+    // الاشتراك في تحديثات التوكنات
+    const tokensChannel = supabase
+      .channel('admin-tokens-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tokens' }, (payload) => {
+        console.log('Tokens change:', payload);
+        supabase.from('tokens').select('*').order('created_at', { ascending: false }).then(({ data }) => {
+          setTokens(data || []);
+        });
+      })
+      .subscribe();
+
+    // الاشتراك في تحديثات طلبات الاسترداد
+    const refundsChannel = supabase
+      .channel('admin-refunds-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'refund_requests' }, (payload) => {
+        console.log('Refunds change:', payload);
+        supabase.from('refund_requests').select('*').order('created_at', { ascending: false }).then(({ data }) => {
+          setRefundRequests(data || []);
+        });
+      })
+      .subscribe();
+
+    // الاشتراك في تحديثات طلبات الشحن
+    const rechargeChannel = supabase
+      .channel('admin-recharge-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'recharge_requests' }, (payload) => {
+        console.log('Recharge change:', payload);
+        fetchTodayStats();
+      })
+      .subscribe();
+
+    // الاشتراك في تحديثات المنتجات والمخزون
+    const productsChannel = supabase
+      .channel('admin-products-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
+        supabase.from('products').select('*').order('created_at', { ascending: false }).then(({ data }) => {
+          setProducts(data || []);
+        });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'product_options' }, () => {
+        supabase.from('product_options').select('*').then(({ data }) => {
+          setProductOptions((data || []).map(opt => ({ ...opt, is_active: opt.is_active ?? true })));
+        });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'stock_items' }, () => {
+        supabase.from('stock_items').select('*').eq('is_sold', false).then(({ data }) => {
+          setStockItems(data || []);
+        });
+      })
+      .subscribe();
+
+    // تنظيف الاشتراكات عند إلغاء التحميل
+    return () => {
+      supabase.removeChannel(ordersChannel);
+      supabase.removeChannel(tokensChannel);
+      supabase.removeChannel(refundsChannel);
+      supabase.removeChannel(rechargeChannel);
+      supabase.removeChannel(productsChannel);
+    };
+  }, [isLoading]);
+
   const checkAuth = async () => {
     // استخدام Supabase Auth للتحقق
     const { data: { session } } = await supabase.auth.getSession();
