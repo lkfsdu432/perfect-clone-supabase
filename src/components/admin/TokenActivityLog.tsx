@@ -4,7 +4,7 @@ import {
   Search, ShoppingBag, Wallet, RotateCcw, Clock, CheckCircle2, 
   XCircle, Loader2, ChevronDown, ChevronUp, History, DollarSign,
   Filter, RefreshCw, Calendar, ArrowUpDown, TrendingUp, TrendingDown,
-  Hash, Eye, X
+  Hash, Eye, X, Globe, Timer, AlertTriangle
 } from 'lucide-react';
 
 interface TokenActivity {
@@ -31,6 +31,9 @@ interface TokenWithActivities {
   total_recharged: number;
   total_refunded: number;
   created_at: string;
+  expires_at: string | null;
+  created_ip: string | null;
+  last_recharge_at: string | null;
 }
 
 type ActivityTypeFilter = 'all' | 'order' | 'recharge' | 'refund';
@@ -128,6 +131,12 @@ const TokenActivityLog = () => {
 
         activities.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
+        // Find last approved recharge date
+        const approvedRecharges = tokenRecharges.filter((r: any) => r.status === 'approved');
+        const lastRechargeAt = approvedRecharges.length > 0 
+          ? approvedRecharges.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0].created_at
+          : null;
+
         return {
           id: token.id,
           token: token.token,
@@ -145,6 +154,9 @@ const TokenActivityLog = () => {
             .filter((r: any) => r.status === 'approved')
             .reduce((sum: number, r: any) => sum + (r.refund_amount || 0), 0),
           created_at: token.created_at,
+          expires_at: token.expires_at || null,
+          created_ip: token.created_ip || null,
+          last_recharge_at: lastRechargeAt,
         };
       });
 
@@ -609,10 +621,44 @@ const TokenActivityLog = () => {
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                        <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-muted-foreground">
                           <span>تسجيل: {new Date(token.created_at).toLocaleDateString('ar-EG')}</span>
                           <span>•</span>
                           <span>{token.activities.length} حركة</span>
+                          {token.created_ip && (
+                            <>
+                              <span>•</span>
+                              <span className="flex items-center gap-1 text-info">
+                                <Globe className="w-3 h-3" />
+                                {token.created_ip}
+                              </span>
+                            </>
+                          )}
+                          {token.last_recharge_at && (
+                            <>
+                              <span>•</span>
+                              {(() => {
+                                const expiresAt = new Date(token.last_recharge_at);
+                                expiresAt.setDate(expiresAt.getDate() + 30);
+                                const now = new Date();
+                                const daysLeft = Math.ceil((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                                const isExpired = daysLeft <= 0;
+                                const isExpiringSoon = daysLeft > 0 && daysLeft <= 7;
+                                return (
+                                  <span className={`flex items-center gap-1 ${
+                                    isExpired ? 'text-destructive' : isExpiringSoon ? 'text-warning' : 'text-muted-foreground'
+                                  }`}>
+                                    <Timer className="w-3 h-3" />
+                                    {isExpired ? (
+                                      'منتهي الصلاحية'
+                                    ) : (
+                                      `ينتهي: ${expiresAt.toLocaleDateString('ar-EG')} (${daysLeft} يوم)`
+                                    )}
+                                  </span>
+                                );
+                              })()}
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>

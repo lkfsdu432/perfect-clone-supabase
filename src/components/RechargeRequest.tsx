@@ -98,9 +98,24 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
 
       if (!tokenId) {
         newToken = generateToken();
+        
+        // Get user IP address
+        let userIp: string | null = null;
+        try {
+          const ipResponse = await fetch('https://api.ipify.org?format=json');
+          const ipData = await ipResponse.json();
+          userIp = ipData.ip;
+        } catch (e) {
+          console.log('Could not fetch IP');
+        }
+
         const { data: tokenData, error: tokenError } = await supabase
           .from('tokens')
-          .insert({ token: newToken, balance: 0 })
+          .insert({ 
+            token: newToken, 
+            balance: 0,
+            created_ip: userIp
+          })
           .select('id')
           .single();
 
