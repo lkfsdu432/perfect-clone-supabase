@@ -1166,23 +1166,13 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
                         const isAutoDelivery = opt.type === 'none' || !opt.type;
                         const isUnavailable = (isAutoDelivery && stockCount === 0) || opt.is_active === false;
                         return (
-                          <SelectItem key={opt.id} value={opt.id} disabled={isUnavailable} className="w-full">
-  <div className="flex items-center justify-between gap-4 w-full">
-    <div className="flex items-center gap-2">
-      {opt.type === 'chat' && (
-        <span className="text-xs bg-primary text-primary-foreground px-1.5 py-0.5 rounded font-medium">
-          نوع التسليم: شات
-        </span>
-      )}
-      {(opt.type === 'none' || !opt.type) && (
-        <span className="text-xs bg-emerald-600 text-white px-1.5 py-0.5 rounded font-medium">
-          نوع التسليم: فوري
-        </span>
-      )}
-      {opt.is_active === false && <span className="text-destructive">(غير متاح)</span>}
-    </div>
-    <span>{opt.name}</span>
-  </div>
+                          <SelectItem
+  key={opt.id}
+  value={opt.id}
+  disabled={isUnavailable}
+  className="w-full"
+>
+  {opt.name} {opt.is_active === false && "(غير متاح حالياً)"}
 </SelectItem>
                         );
                       })}
