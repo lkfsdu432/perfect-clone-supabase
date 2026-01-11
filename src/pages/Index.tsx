@@ -1734,12 +1734,79 @@ const Index = () => {
 
                   {showBalance && tokenBalance !== null && tokenData && (
                     <div className="space-y-4">
+                      {/* Token Expiry Warning */}
+                      {tokenRecharges.some(r => r.status === 'approved') && (() => {
+                        const approvedRecharges = tokenRecharges.filter(r => r.status === 'approved');
+                        const lastRecharge = approvedRecharges.sort((a, b) => 
+                          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+                        )[0];
+                        if (!lastRecharge) return null;
+                        
+                        const expiresAt = new Date(lastRecharge.created_at);
+                        expiresAt.setDate(expiresAt.getDate() + 30);
+                        const now = new Date();
+                        const daysLeft = Math.ceil((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                        const isExpired = daysLeft <= 0;
+                        const isExpiringSoon = daysLeft > 0 && daysLeft <= 7;
+                        
+                        if (!isExpired && !isExpiringSoon) return null;
+                        
+                        return (
+                          <div className={`p-3 rounded-lg border ${
+                            isExpired 
+                              ? 'bg-destructive/10 border-destructive/30' 
+                              : 'bg-warning/10 border-warning/30'
+                          }`}>
+                            <div className="flex items-center gap-2">
+                              <Clock className={`w-4 h-4 ${isExpired ? 'text-destructive' : 'text-warning'}`} />
+                              <span className={`text-sm font-medium ${isExpired ? 'text-destructive' : 'text-warning'}`}>
+                                {isExpired 
+                                  ? '⚠️ انتهت صلاحية التوكن!' 
+                                  : `⏰ تبقى ${daysLeft} يوم على انتهاء صلاحية التوكن`
+                                }
+                              </span>
+                            </div>
+                            <p className={`text-xs mt-1 ${isExpired ? 'text-destructive/80' : 'text-warning/80'}`}>
+                              {isExpired 
+                                ? 'الرصيد المتبقي قد يكون مفقوداً. يرجى شحن التوكن لتجديد الصلاحية.' 
+                                : 'اشحن التوكن قبل انتهاء المدة لتجديد الصلاحية والحفاظ على رصيدك.'
+                              }
+                            </p>
+                          </div>
+                        );
+                      })()}
+
                       {/* Balance Display */}
                       <div className="p-4 rounded-xl bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20">
                         <div className="flex items-center justify-between">
                           <span className="text-muted-foreground">الرصيد الحالي:</span>
                           <span className="text-2xl font-bold text-primary">${tokenBalance}</span>
                         </div>
+                        {/* Token Validity Info */}
+                        {tokenRecharges.some(r => r.status === 'approved') && (() => {
+                          const approvedRecharges = tokenRecharges.filter(r => r.status === 'approved');
+                          const lastRecharge = approvedRecharges.sort((a, b) => 
+                            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+                          )[0];
+                          if (!lastRecharge) return null;
+                          
+                          const expiresAt = new Date(lastRecharge.created_at);
+                          expiresAt.setDate(expiresAt.getDate() + 30);
+                          const now = new Date();
+                          const daysLeft = Math.ceil((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                          const isExpired = daysLeft <= 0;
+                          
+                          return (
+                            <div className="mt-2 pt-2 border-t border-primary/20 text-xs text-muted-foreground">
+                              <div className="flex items-center justify-between">
+                                <span>صلاحية التوكن:</span>
+                                <span className={isExpired ? 'text-destructive font-medium' : daysLeft <= 7 ? 'text-warning font-medium' : ''}>
+                                  {isExpired ? 'منتهي' : `${daysLeft} يوم متبقي`}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
 
 
