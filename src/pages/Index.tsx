@@ -349,52 +349,63 @@ const Index = () => {
   };
 
   const applyCoupon = async () => {
-    if (!couponCode.trim()) return;
+  if (!couponCode.trim()) return;
 
-    setCouponLoading(true);
-    const { data, error } = await supabase
-      .from('coupons')
-      .select('*')
-      .eq('code', couponCode.toUpperCase().trim())
-      .eq('is_active', true)
-      .maybeSingle();
+  setCouponLoading(true);
+  const { data, error } = await supabase
+    .from('coupons')
+    .select('*')
+    .eq('code', couponCode.toUpperCase().trim())
+    .eq('is_active', true)
+    .maybeSingle();
 
-    setCouponLoading(false);
+  setCouponLoading(false);
 
-    if (error || !data) {
-      toast({
-        title: 'خطأ',
-        description: 'كود الكوبون غير صالح',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    // Check expiry
-    if (data.expires_at && new Date(data.expires_at) < new Date()) {
-      toast({
-        title: 'خطأ',
-        description: 'كود الكوبون منتهي الصلاحية',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    // Check max uses
-    if (data.max_uses && data.used_count >= data.max_uses) {
-      toast({
-        title: 'خطأ',
-        description: 'تم استخدام الكوبون الحد الأقصى للمرات',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setAppliedCoupon({
-      code: data.code,
-      discount_type: data.discount_type as 'percentage' | 'fixed',
-      discount_value: Number(data.discount_value)
+  if (error || !data) {
+    toast({
+      title: 'خطأ',
+      description: 'كود الكوبون غير صالح',
+      variant: 'destructive',
     });
+    return;
+  }
+
+  // Check if coupon is for specific product
+  if (data.product_id && product && data.product_id !== product.id) {
+    toast({
+      title: 'خطأ',
+      description: 'هذا الكوبون غير صالح لهذا المنتج',
+      variant: 'destructive',
+    });
+    return;
+  }
+
+  // Check expiry
+  if (data.expires_at && new Date(data.expires_at) < new Date()) {
+    toast({
+      title: 'خطأ',
+      description: 'كود الكوبون منتهي الصلاحية',
+      variant: 'destructive',
+    });
+    return;
+  }
+
+  // Check max uses
+  if (data.max_uses && data.used_count >= data.max_uses) {
+    toast({
+      title: 'خطأ',
+      description: 'تم استخدام الكوبون الحد الأقصى للمرات',
+      variant: 'destructive',
+    });
+    return;
+  }
+
+  setAppliedCoupon({
+    code: data.code,
+    discount_type: data.discount_type as 'percentage' | 'fixed',
+    discount_value: Number(data.discount_value)
+  });
+
 
     toast({
       title: 'تم',
