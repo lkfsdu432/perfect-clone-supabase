@@ -35,6 +35,7 @@ interface RechargeRequest {
   sender_name: string | null;
   sender_phone: string | null;
   transaction_reference: string | null;
+  sender_reference: string | null;
   status: string;
   admin_note: string | null;
   created_at: string;
@@ -250,6 +251,12 @@ export const RechargeManagement = () => {
                         <span className="flex items-center gap-1">
                           <Hash className="w-4 h-4" />
                           {request.transaction_reference}
+                        </span>
+                      )}
+                      {request.sender_reference && (
+                        <span className="flex items-center gap-1 bg-primary/10 px-2 py-1 rounded text-primary font-medium">
+                          <Hash className="w-4 h-4" />
+                          المحول: {request.sender_reference}
                         </span>
                       )}
                     </div>
