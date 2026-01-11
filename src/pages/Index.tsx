@@ -119,7 +119,7 @@ const Index = () => {
   
   const { toast } = useToast();
   const { fingerprint, getFingerprint } = useDeviceFingerprint();
-
+const [requiredTextInstructions, setRequiredTextInstructions] = useState('');
   const product = products.find(p => p.id === selectedProductId);
   const options = productOptions.filter(o => o.product_id === selectedProductId);
   const selectedOption = productOptions.find(o => o.id === selectedOptionId);
@@ -176,6 +176,10 @@ const Index = () => {
 
     checkActiveOrder();
     fetchProducts();
+    // جلب تعليمات النص المطلوب
+supabase.from('settings').select('value').eq('key', 'required_text_instructions').maybeSingle().then(({ data }) => {
+  if (data) setRequiredTextInstructions(data.value || '');
+});
   }, []);
 
   // Subscribe to active order updates
@@ -1487,6 +1491,9 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
               {selectedOption.type === 'text' && (
                 <div>
                   <label className="block text-sm font-medium mb-2">النص المطلوب</label>
+                  {requiredTextInstructions && (
+  <p className="text-sm text-muted-foreground mb-2">{requiredTextInstructions}</p>
+)}
                   <textarea
                     value={textInput}
                     onChange={(e) => setTextInput(e.target.value)}
