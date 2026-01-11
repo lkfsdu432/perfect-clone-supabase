@@ -459,25 +459,27 @@ const Index = () => {
     setPurchaseLimitError(null);
 
     // Check purchase limit for this device
-    const deviceFingerprint = getFingerprint();
-    if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && deviceFingerprint) {
-      const { count, error: countError } = await supabase
-        .from('device_purchases')
-        .select('*', { count: 'exact', head: true })
-        .eq('device_fingerprint', deviceFingerprint)
-        .eq('product_option_id', selectedOption.id);
+const deviceFingerprint = getFingerprint();
+if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && deviceFingerprint) {
+  const { data: purchaseData, error: countError } = await supabase
+    .from('device_purchases')
+    .select('quantity')
+    .eq('device_fingerprint', deviceFingerprint)
+    .eq('product_option_id', selectedOption.id);
 
-      if (!countError && count !== null && count >= selectedOption.purchase_limit) {
-        setPurchaseLimitError(`لقد وصلت للحد الأقصى للشراء (${selectedOption.purchase_limit}) لهذا المنتج من هذا الجهاز`);
-        toast({
-          title: 'تم الوصول للحد الأقصى',
-          description: `لا يمكنك شراء أكثر من ${selectedOption.purchase_limit} من هذا المنتج`,
-          variant: 'destructive',
-        });
-        setIsLoading(false);
-        return;
-      }
-    }
+  const totalPurchased = purchaseData?.reduce((sum, record) => sum + (record.quantity || 1), 0) || 0;
+
+  if (!countError && totalPurchased + quantity > selectedOption.purchase_limit) {
+    setPurchaseLimitError(`لقد وصلت للحد الأقصى للشراء (${selectedOption.purchase_limit}) لهذا المنتج من هذا الجهاز`);
+    toast({
+      title: 'تم الوصول للحد الأقصى',
+      description: `لا يمكنك شراء أكثر من ${selectedOption.purchase_limit} من هذا المنتج`,
+      variant: 'destructive',
+    });
+    setIsLoading(false);
+    return;
+  }
+}
 
     // For auto-delivery, first check if stock is available
     if (isAutoDelivery) {
