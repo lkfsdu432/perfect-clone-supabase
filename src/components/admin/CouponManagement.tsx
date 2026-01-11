@@ -40,14 +40,21 @@ interface Coupon {
   is_active: boolean;
   expires_at: string | null;
   created_at: string;
+  product_id: string | null;
+}
+
+interface Product {
+  id: string;
+  name: string;
 }
 
 const CouponManagement = () => {
   const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCoupon, setEditingCoupon] = useState<Coupon | null>(null);
-  
+
   // Form states
   const [code, setCode] = useState("");
   const [discountType, setDiscountType] = useState("percentage");
@@ -55,9 +62,11 @@ const CouponManagement = () => {
   const [maxUses, setMaxUses] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [expiresAt, setExpiresAt] = useState("");
+  const [productId, setProductId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchCoupons();
+    fetchProducts();
   }, []);
 
   const fetchCoupons = async () => {
@@ -69,6 +78,21 @@ const CouponManagement = () => {
 
     if (data) setCoupons(data);
     setLoading(false);
+  };
+
+  const fetchProducts = async () => {
+    const { data } = await supabase
+      .from("products")
+      .select("id, name")
+      .order("name");
+
+    if (data) setProducts(data);
+  };
+
+  const getProductName = (productId: string | null) => {
+    if (!productId) return "جميع المنتجات";
+    const product = products.find((p) => p.id === productId);
+    return product?.name || "منتج محذوف";
   };
 
   const handleSave = async () => {
@@ -84,6 +108,7 @@ const CouponManagement = () => {
       max_uses: maxUses ? parseInt(maxUses) : null,
       is_active: isActive,
       expires_at: expiresAt || null,
+      product_id: productId,
     };
 
     if (editingCoupon) {
@@ -136,6 +161,7 @@ const CouponManagement = () => {
     setMaxUses("");
     setIsActive(true);
     setExpiresAt("");
+    setProductId(null);
     setEditingCoupon(null);
   };
 
@@ -147,6 +173,7 @@ const CouponManagement = () => {
     setMaxUses(coupon.max_uses?.toString() || "");
     setIsActive(coupon.is_active);
     setExpiresAt(coupon.expires_at?.split("T")[0] || "");
+    setProductId(coupon.product_id);
     setDialogOpen(true);
   };
 
@@ -250,6 +277,27 @@ const CouponManagement = () => {
                 </div>
               </div>
 
+              {/* حقل اختيار المنتج الجديد */}
+              <div className="space-y-2">
+                <Label>مخصص لمنتج معين</Label>
+                <Select
+                  value={productId || "all"}
+                  onValueChange={(v) => setProductId(v === "all" ? null : v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="جميع المنتجات" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">جميع المنتجات</SelectItem>
+                    {products.map((product) => (
+                      <SelectItem key={product.id} value={product.id}>
+                        {product.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div className="flex items-center gap-2">
                 <Switch checked={isActive} onCheckedChange={setIsActive} />
                 <Label>نشط</Label>
@@ -270,6 +318,7 @@ const CouponManagement = () => {
               <TableRow>
                 <TableHead>الكود</TableHead>
                 <TableHead>الخصم</TableHead>
+                <TableHead>المنتج</TableHead>
                 <TableHead>الاستخدامات</TableHead>
                 <TableHead>الحالة</TableHead>
                 <TableHead>الانتهاء</TableHead>
@@ -285,6 +334,11 @@ const CouponManagement = () => {
                   <TableCell>
                     {coupon.discount_value}
                     {coupon.discount_type === "percentage" ? "%" : " ر.س"}
+                  </TableCell>
+                  <TableCell>
+                    <span className={coupon.product_id ? "text-primary" : "text-muted-foreground"}>
+                      {getProductName(coupon.product_id)}
+                    </span>
                   </TableCell>
                   <TableCell>
                     {coupon.current_uses} / {coupon.max_uses || "∞"}
@@ -327,7 +381,7 @@ const CouponManagement = () => {
               ))}
               {coupons.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center text-muted-foreground">
                     لا توجد كوبونات
                   </TableCell>
                 </TableRow>
