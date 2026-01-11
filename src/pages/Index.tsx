@@ -1155,7 +1155,20 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
 
               {product && options.length > 0 && (
                 <div>
-                  <label className="block text-sm font-medium mb-2">اختر نوع الخدمة</label>
+                  <div className="mb-2">
+  <label className="block text-sm font-medium">اختر نوع الخدمة</label>
+  {selectedOption && (
+    <span className={`inline-block mt-1 text-xs px-2 py-0.5 rounded font-medium ${
+      selectedOption.type === 'chat' 
+        ? 'bg-primary text-primary-foreground' 
+        : (selectedOption.type === 'none' || !selectedOption.type) 
+          ? 'bg-emerald-600 text-white' 
+          : 'bg-amber-500 text-white'
+    }`}>
+      نوع التسليم: {selectedOption.type === 'chat' ? 'شات' : (selectedOption.type === 'none' || !selectedOption.type) ? 'فوري' : 'يدوي'}
+    </span>
+  )}
+</div>
                   <Select value={selectedOptionId} onValueChange={handleOptionChange}>
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="اختر نوع الخدمة..." />
