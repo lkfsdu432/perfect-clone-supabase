@@ -34,6 +34,7 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null);
   const [proofImage, setProofImage] = useState<File | null>(null);
+  const [senderReference, setSenderReference] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [generatedToken, setGeneratedToken] = useState<string | null>(null);
@@ -130,6 +131,7 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
           payment_method: selectedMethod.name,
           payment_method_id: selectedMethod.id,
           proof_image_url: publicUrl,
+          sender_reference: senderReference.trim() || null,
           status: 'pending'
         });
 
@@ -170,6 +172,11 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
             </button>
           </div>
           <p className="text-xs text-muted-foreground mt-2">تم حفظ التوكن تلقائياً في متصفحك</p>
+          <div className="mt-3 p-2 bg-orange-50 dark:bg-orange-950/20 rounded-lg border border-orange-200 dark:border-orange-800">
+            <p className="text-xs text-orange-700 dark:text-orange-400 font-medium">
+              ⏰ مدة صلاحية التوكن 30 يوم فقط من تاريخ آخر شحن. الرصيد المتبقي بعد انتهاء المدة سيتم فقدانه.
+            </p>
+          </div>
         </div>
 
         <Button
@@ -180,6 +187,7 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
             setSelectedAmount(null);
             setSelectedMethod(null);
             setProofImage(null);
+            setSenderReference("");
             setGeneratedToken(null);
           }}
         >
@@ -279,6 +287,17 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
             <span className="block text-xs text-muted-foreground">{amt * dollarRate}ج</span>
           </button>
         ))}
+      </div>
+
+      {/* رقم/اسم المحول */}
+      <div>
+        <input
+          type="text"
+          value={senderReference}
+          onChange={(e) => setSenderReference(e.target.value)}
+          placeholder="رقم الإيصال أو اسم المحول (اختياري)"
+          className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+        />
       </div>
 
       {/* رفع الصورة */}
