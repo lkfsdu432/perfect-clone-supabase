@@ -1170,10 +1170,14 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
   <div className="flex items-center gap-2">
     <span>{opt.name}</span>
     {opt.type === 'chat' && (
-      <span className="text-xs bg-primary/20 text-primary px-1.5 py-0.5 rounded">شات</span>
+      <span className="text-xs bg-primary text-primary-foreground px-1.5 py-0.5 rounded font-medium">
+        نوع التسليم: شات
+      </span>
     )}
     {(opt.type === 'none' || !opt.type) && (
-      <span className="text-xs bg-success/20 text-success px-1.5 py-0.5 rounded">فوري</span>
+      <span className="text-xs bg-emerald-600 text-white px-1.5 py-0.5 rounded font-medium">
+        نوع التسليم: فوري
+      </span>
     )}
     {opt.is_active === false && <span className="text-destructive">(غير متاح)</span>}
   </div>
