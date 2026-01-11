@@ -1174,6 +1174,14 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
         نوع التسليم: شات
       </span>
     )}
+                    {(opt.type === 'none' || !opt.type) && (
+                  <span className="text-xs bg-emerald-600 text-white px-1.5 py-0.5 rounded font-medium">
+                    نوع التسليم: فوري
+                  </span>
+                )}
+                {opt.is_active === false && <span className="text-destructive">(غير متاح)</span>}
+              </div>
+            </SelectItem>
     {(opt.type === 'none' || !opt.type) && (
       <span className="text-xs bg-emerald-600 text-white px-1.5 py-0.5 rounded font-medium">
         نوع التسليم: فوري
