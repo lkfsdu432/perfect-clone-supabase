@@ -18,6 +18,7 @@ import AdminUsersManagement from '@/components/admin/AdminUsersManagement';
 import NewsManagement from '@/components/admin/NewsManagement';
 import TokenActivityLog from '@/components/admin/TokenActivityLog';
 import StockManagement from '@/components/admin/StockManagement';
+import VisitCounter from "@/components/admin/VisitCounter";
 
 interface Product {
   id: string;
@@ -1796,7 +1797,7 @@ const Admin = () => {
             <span className="text-xl font-bold text-warning">{todayStats.totalRecharges}</span>
           </div>
         </div>
-
+<VisitCounter />
         {/* Orders Tab */}
         {activeTab === 'orders' && (
           <div className="space-y-4">
