@@ -1130,7 +1130,7 @@ const Admin = () => {
           const { data: insertedOption, error: optError } = await supabase.from('product_options').insert({
             product_id: newProduct.id,
             name: opt.name,
-            type: opt.delivery_type === 'auto' ? 'none' : (opt.input_type || 'email_password'),
+            type: opt.delivery_type === 'auto' ? 'none' : opt.delivery_type === 'chat' ? 'chat' : (opt.input_type || 'email_password'),
             description: opt.description || null,
             estimated_time: opt.estimated_time || null,
             price: opt.price || 0,
@@ -1188,7 +1188,7 @@ const Admin = () => {
         estimated_time: option.estimated_time || '',
         price: option.price || 0,
         duration: option.duration || '',
-        delivery_type: isAuto ? 'auto' : 'manual',
+        delivery_type: isAuto ? 'auto' : option.type === 'chat' ? 'chat' : 'manual',
         is_active: option.is_active !== false,
         purchase_limit: option.purchase_limit || 0,
         max_quantity_per_order: option.max_quantity_per_order || 0
@@ -1206,7 +1206,7 @@ const Admin = () => {
       return;
     }
 
-    const typeToSave = optionForm.delivery_type === 'auto' ? 'none' : optionForm.type;
+    const typeToSave = optionForm.delivery_type === 'auto' ? 'none' : optionForm.delivery_type === 'chat' ? 'chat' : optionForm.type;
 
     if (editingOption) {
       const { error } = await supabase
@@ -2158,6 +2158,19 @@ const Admin = () => {
                                 <Zap className="w-4 h-4" />
                                 تلقائي (اكونتات)
                               </button>
+                                                            <button
+                                type="button"
+                                onClick={() => updateNewProductOption(index, 'delivery_type', 'chat')}
+                                className={`flex-1 py-2.5 px-3 rounded-lg border text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+                                  opt.delivery_type === 'chat'
+                                    ? 'bg-primary/10 border-primary text-primary'
+                                    : 'border-border hover:bg-muted'
+                                }`}
+                              >
+                                <MessageCircle className="w-4 h-4" />
+                                شات (بيانات)
+                              </button>
+
                             </div>
                           </div>
 
@@ -2206,7 +2219,15 @@ const Admin = () => {
                               </p>
                             </div>
                           )}
-
+                          {/* Chat: Show info message */}
+                          {opt.delivery_type === 'chat' && (
+                            <div className="p-3 bg-primary/5 rounded-lg border border-primary/20 mb-3">
+                              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                <MessageCircle className="w-4 h-4" />
+                                سيتم إرسال البيانات (إيميل وباسورد) للعميل في الشات بعد تأكيد الطلب
+                              </p>
+                            </div>
+                          )}
                           {/* Description */}
                           <div>
                             <label className="text-xs text-muted-foreground mb-1 block">وصف (اختياري)</label>
