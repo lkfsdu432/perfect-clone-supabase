@@ -865,17 +865,6 @@ const Admin = () => {
       fetchTodayStats();
     }
   }, [activeTab, isLoading]);
-useEffect(() => {
-  const fetchSettings = async () => {
-    const { data } = await supabase
-      .from('settings')
-      .select('value')
-      .eq('key', 'required_text_instructions')
-      .maybeSingle();
-    if (data) setRequiredTextInstructions(data.value || '');
-  };
-  fetchSettings();
-}, []);
   // Real-time subscriptions للتحديث التلقائي
   useEffect(() => {
     if (isLoading) return;
