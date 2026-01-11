@@ -778,6 +778,7 @@ const Admin = () => {
 
   // Token search state
   const [tokenSearch, setTokenSearch] = useState<string>('');
+  const [requiredTextInstructions, setRequiredTextInstructions] = useState('');
 
   // Use order notification hook
   const { newOrdersCount, clearNotifications, soundEnabled, toggleSound, testSound } = useOrderNotification();
@@ -864,7 +865,17 @@ const Admin = () => {
       fetchTodayStats();
     }
   }, [activeTab, isLoading]);
-
+useEffect(() => {
+  const fetchSettings = async () => {
+    const { data } = await supabase
+      .from('settings')
+      .select('value')
+      .eq('key', 'required_text_instructions')
+      .maybeSingle();
+    if (data) setRequiredTextInstructions(data.value || '');
+  };
+  fetchSettings();
+}, []);
   // Real-time subscriptions للتحديث التلقائي
   useEffect(() => {
     if (isLoading) return;
@@ -1849,6 +1860,29 @@ const Admin = () => {
         {/* Products Tab */}
         {activeTab === 'products' && (
           <div className="space-y-4">
+            {/* تعليمات النص المطلوب */}
+<div className="bg-card rounded-xl border border-border p-4 space-y-3">
+  <h3 className="font-bold flex items-center gap-2">
+    <Settings className="w-4 h-4" />
+    تعليمات النص المطلوب للعميل
+  </h3>
+  <textarea
+    value={requiredTextInstructions}
+    onChange={(e) => setRequiredTextInstructions(e.target.value)}
+    className="input-field w-full h-24"
+    placeholder="اكتب التعليمات اللي هتظهر للعميل..."
+  />
+  <button
+    onClick={async () => {
+      await supabase.from('settings').update({ value: requiredTextInstructions })
+        .eq('key', 'required_text_instructions');
+      toast({ title: 'تم حفظ التعليمات' });
+    }}
+    className="btn-primary px-4 py-2"
+  >
+    حفظ التعليمات
+  </button>
+</div>
             <div className="flex justify-end">
               <button
                 onClick={() => openProductModal()}
