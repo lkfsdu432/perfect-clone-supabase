@@ -1546,8 +1546,14 @@ const Admin = () => {
   };
 
   const getProductStockCount = (productId: string) => {
-    return stockItems.filter(s => s.product_option_id === productId && !s.is_sold).length;
-  };
+  const optionIds = productOptions
+    .filter(o => o.product_id === productId)
+    .map(o => o.id);
+
+  return stockItems.filter(
+    s => !s.is_sold && !!s.product_option_id && optionIds.includes(s.product_option_id)
+  ).length;
+};
 
   const getOptionStockCount = (optionId: string) => {
     return stockItems.filter(s => s.product_option_id === optionId && !s.is_sold).length;
