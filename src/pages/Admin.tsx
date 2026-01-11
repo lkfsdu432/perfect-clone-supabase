@@ -169,6 +169,26 @@ const OrderCard = ({
             <Package className="w-4 h-4 text-primary" />
             <span>   {getProductName()}   {order.quantity && (     <span className="text-primary mr-2 font-bold">(x{order.quantity})</span>   )} </span>
           </div>
+                        {/* نوع التسليم */}
+              {(() => {
+                const option = productOptions.find(o => o.id === order.product_option_id);
+                if (option?.type === 'chat') {
+                  return (
+                    <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-md flex items-center gap-1">
+                      <MessageCircle className="w-3 h-3" />
+                      شات
+                    </span>
+                  );
+                } else if (option?.type === 'none') {
+                  return (
+                    <span className="text-xs bg-success/20 text-success px-2 py-0.5 rounded-md flex items-center gap-1">
+                      <Zap className="w-3 h-3" />
+                      تلقائي
+                    </span>
+                  );
+                }
+                return null;
+              })()}
           <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-lg font-mono">
             طلب #{order.order_number}
           </span>
