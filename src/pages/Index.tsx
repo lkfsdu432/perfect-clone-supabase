@@ -1167,21 +1167,19 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
                         const isUnavailable = (isAutoDelivery && stockCount === 0) || opt.is_active === false;
                         return (
                           <SelectItem key={opt.id} value={opt.id} disabled={isUnavailable}>
-  <div className="flex items-center justify-between w-full gap-2">
-    <span>{opt.name}</span>
-    <div className="flex items-center gap-2">
-      {opt.type === 'chat' && (
-        <span className="text-xs bg-primary text-primary-foreground px-1.5 py-0.5 rounded font-medium">
-          نوع التسليم: شات
-        </span>
-      )}
-      {(opt.type === 'none' || !opt.type) && (
-        <span className="text-xs bg-emerald-600 text-white px-1.5 py-0.5 rounded font-medium">
-          نوع التسليم: فوري
-        </span>
-      )}
-      {opt.is_active === false && <span className="text-destructive">(غير متاح)</span>}
-    </div>
+  <div className="flex items-center w-full min-w-[300px]">
+    <span className="flex-1">{opt.name}</span>
+    {opt.type === 'chat' && (
+      <span className="text-xs bg-primary text-primary-foreground px-1.5 py-0.5 rounded font-medium mr-auto">
+        نوع التسليم: شات
+      </span>
+    )}
+    {(opt.type === 'none' || !opt.type) && (
+      <span className="text-xs bg-emerald-600 text-white px-1.5 py-0.5 rounded font-medium mr-auto">
+        نوع التسليم: فوري
+      </span>
+    )}
+    {opt.is_active === false && <span className="text-destructive mr-auto">(غير متاح)</span>}
   </div>
 </SelectItem>
                         );
