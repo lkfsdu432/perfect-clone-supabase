@@ -275,45 +275,6 @@ const handleDeliverData = async () => {
             </div>
           )}
         </div>
-{/* قسم تسليم البيانات - يظهر فقط للطلبات نوع chat */}
-{productOptions.find(o => o.id === order.product_option_id)?.type === 'chat' && (
-  <div className="p-4 bg-primary/5 rounded-xl border border-primary/20 space-y-3">
-    <h4 className="font-bold text-primary flex items-center gap-2">
-      <MessageCircle className="w-4 h-4" />
-      تسليم البيانات للعميل
-    </h4>
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-      <input
-        type="email"
-        value={deliveredEmail}
-        onChange={(e) => setDeliveredEmail(e.target.value)}
-        placeholder="الإيميل المسلم"
-        className="input-field"
-      />
-      <input
-        type="text"
-        value={deliveredPassword}
-        onChange={(e) => setDeliveredPassword(e.target.value)}
-        placeholder="الباسورد المسلم"
-        className="input-field"
-      />
-    </div>
-    <textarea
-      value={adminNotes}
-      onChange={(e) => setAdminNotes(e.target.value)}
-      placeholder="ملاحظات للعميل (اختياري)"
-      className="input-field w-full h-20"
-    />
-    <button
-      onClick={handleDeliverData}
-      disabled={isDelivering || !deliveredEmail || !deliveredPassword}
-      className="btn-primary w-full py-2.5 flex items-center justify-center gap-2"
-    >
-      {isDelivering ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-      تسليم البيانات وإكمال الطلب
-    </button>
-  </div>
-)}
         {/* Actions */}
         <div className="flex flex-col sm:flex-row gap-3">
           <select
