@@ -127,7 +127,7 @@ const OrderCard = ({
 const [deliveredEmail, setDeliveredEmail] = useState(order.delivered_email || '');
 const [deliveredPassword, setDeliveredPassword] = useState(order.delivered_password || '');
 const [adminNotes, setAdminNotes] = useState(order.admin_notes || '');
-const [isDelivering, setIsDelivering] = useState(false);\
+const [isDelivering, setIsDelivering] = useState(false);
   const handleSubmit = () => {
     onUpdateStatus(order.id, selectedStatus, message);
   };
