@@ -5,7 +5,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 const PRESET_AMOUNTS = [5, 10, 15, 20];
-const MIN_CUSTOM_AMOUNT = 5;
 const TOKEN_STORAGE_KEY = 'user_token';
 
 interface PaymentMethod {
@@ -34,7 +33,7 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null);
-  const [customAmount, setCustomAmount] = useState<string>("");
+  const [customAmount, setCustomAmount] = useState("");
   const [isCustomMode, setIsCustomMode] = useState(false);
   const [proofImage, setProofImage] = useState<File | null>(null);
   const [senderReference, setSenderReference] = useState("");
@@ -45,14 +44,12 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
 
   useEffect(() => {
     const fetchData = async () => {
-      // Fetch payment methods
       const { data: methods } = await supabase
         .from('payment_methods')
         .select('*')
         .order('display_order');
       setPaymentMethods((methods || []) as PaymentMethod[]);
 
-      // Fetch dollar rate
       const { data: settings } = await supabase
         .from('settings')
         .select('value')
@@ -102,7 +99,6 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
       if (!tokenId) {
         newToken = generateToken();
         
-        // Get user IP address
         let userIp: string | null = null;
         try {
           const ipResponse = await fetch('https://api.ipify.org?format=json');
@@ -169,37 +165,41 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
 
   if (isSubmitted && generatedToken) {
     return (
-      <div className="text-center space-y-4 p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
-        <CheckCircle className="w-12 h-12 text-green-500 mx-auto" />
-        <div>
-          <p className="text-lg font-bold text-green-700 dark:text-green-400">تم إرسال طلب الشحن!</p>
-          <p className="text-sm text-green-600 dark:text-green-500">سيتم إضافة الرصيد بعد المراجعة</p>
+      <div className="text-center space-y-6">
+        <div className="flex flex-col items-center gap-3">
+          <CheckCircle className="w-16 h-16 text-green-500" />
+          <div>
+            <h3 className="text-xl font-bold text-foreground">تم إرسال طلب الشحن!</h3>
+            <p className="text-muted-foreground">سيتم إضافة الرصيد بعد المراجعة</p>
+          </div>
         </div>
 
-        <div className="p-4 bg-white dark:bg-card border-2 border-primary rounded-lg">
-          <p className="text-xs text-muted-foreground mb-2">⚠️ احتفظ بهذا التوكن - ستحتاجه للشراء والشحن</p>
-          <div className="flex items-center justify-center gap-2">
-            <span className="font-mono text-2xl font-bold text-primary tracking-wider select-all">
+        <div className="bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20 rounded-xl p-4 space-y-3">
+          <p className="text-sm font-medium text-primary">⚠️ احتفظ بهذا التوكن - ستحتاجه للشراء والشحن</p>
+          <div className="flex items-center justify-center gap-2 bg-background rounded-lg p-3">
+            <span className="font-mono text-lg font-bold tracking-wider text-foreground">
               {generatedToken}
             </span>
             <button
               onClick={() => copyToken(generatedToken)}
               className="p-2 hover:bg-muted rounded-lg transition-colors"
             >
-              <Copy className="w-5 h-5 text-primary" />
+              <Copy className="w-5 h-5" />
             </button>
           </div>
-          <p className="text-xs text-muted-foreground mt-2">تم حفظ التوكن تلقائياً في متصفحك</p>
-          <div className="mt-3 p-2 bg-orange-50 dark:bg-orange-950/20 rounded-lg border border-orange-200 dark:border-orange-800">
-            <p className="text-xs text-orange-700 dark:text-orange-400 font-medium">
-              ⏰ مدة صلاحية التوكن 30 يوم فقط من تاريخ آخر شحن. الرصيد المتبقي بعد انتهاء المدة سيتم فقدانه.
-            </p>
+          <p className="text-xs text-muted-foreground">تم حفظ التوكن تلقائياً في متصفحك</p>
+          <div className="mt-2">
+            <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
+              <p className="text-xs text-yellow-600 dark:text-yellow-400">
+                ⏰ مدة صلاحية التوكن 30 يوم فقط من تاريخ آخر شحن. الرصيد المتبقي بعد انتهاء المدة سيتم فقدانه.
+              </p>
+            </div>
           </div>
         </div>
 
         <Button
           variant="outline"
-          size="sm"
+          className="w-full"
           onClick={() => {
             setIsSubmitted(false);
             setSelectedAmount(null);
@@ -219,27 +219,26 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
 
   if (isSubmitted && !generatedToken) {
     return (
-      <div className="text-center space-y-3 p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
-        <CheckCircle className="w-10 h-10 text-green-500 mx-auto" />
-        <p className="text-sm font-bold text-green-700 dark:text-green-400">تم إرسال طلب الشحن!</p>
-        <p className="text-xs text-green-600 dark:text-green-500">سيتم إضافة الرصيد بعد المراجعة</p>
+      <div className="text-center space-y-4">
+        <CheckCircle className="w-16 h-16 text-green-500 mx-auto" />
+        <h3 className="text-xl font-bold text-foreground">تم إرسال طلب الشحن!</h3>
+        <p className="text-muted-foreground">سيتم إضافة الرصيد بعد المراجعة</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-3">
-      <p className="text-xs text-muted-foreground text-center">الدولار = {dollarRate} جنيه</p>
+    <div className="space-y-4">
+      <p className="text-center text-sm text-muted-foreground">الدولار = {dollarRate} جنيه</p>
 
       {/* اختيار طريقة الدفع */}
-      <div className="flex flex-wrap justify-center gap-2">
+      <div className="flex flex-wrap gap-2 justify-center">
         {paymentMethods.map((method) => {
           const Icon = typeIcons[method.type || ''] || Wallet;
           const isActive = method.is_active;
           return (
             <button
               key={method.id}
-              type="button"
               onClick={() => isActive && setSelectedMethod(method)}
               disabled={!isActive}
               className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${
@@ -251,9 +250,9 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
               }`}
             >
               <Icon className="w-4 h-4" />
-              <span className="text-xs font-medium">
+              <span className="text-sm">
                 {method.name}
-                {!isActive && <span className="text-[10px] mr-1 text-muted-foreground">(غير متاح)</span>}
+                {!isActive && <span className="text-xs mr-1">(غير متاح)</span>}
               </span>
             </button>
           );
@@ -262,14 +261,13 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
 
       {/* معلومات طريقة الدفع */}
       {selectedMethod && (
-        <div className="p-4 bg-gradient-to-b from-primary/10 to-primary/5 rounded-xl border border-primary/30 space-y-3 overflow-hidden">
+        <div className="bg-muted/50 rounded-lg p-3 space-y-2 text-center">
           {selectedMethod.account_number && (
-            <div className="flex items-center gap-2 p-3 bg-card rounded-lg border border-border shadow-sm" dir="ltr">
-              <span className="font-mono text-sm font-bold text-foreground flex-1 break-all select-all text-left">
+            <div className="flex items-center justify-center gap-2">
+              <span className="font-mono text-lg font-bold">
                 {selectedMethod.account_number}
               </span>
               <button
-                type="button"
                 onClick={() => {
                   navigator.clipboard.writeText(selectedMethod.account_number || '');
                   toast.success("تم نسخ الرقم!");
@@ -282,21 +280,20 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
             </div>
           )}
           {selectedMethod.account_name && (
-            <p className="text-center text-sm font-semibold text-foreground">{selectedMethod.account_name}</p>
+            <p className="text-sm text-muted-foreground">{selectedMethod.account_name}</p>
           )}
           {selectedMethod.instructions && (
-            <p className="text-center text-xs text-muted-foreground">{selectedMethod.instructions}</p>
+            <p className="text-xs text-muted-foreground">{selectedMethod.instructions}</p>
           )}
         </div>
       )}
 
       {/* اختيار المبلغ */}
-      <div className="space-y-2">
+      <div className="space-y-3">
         <div className="grid grid-cols-4 gap-2">
           {PRESET_AMOUNTS.map((amt) => (
             <button
               key={amt}
-              type="button"
               onClick={() => {
                 setSelectedAmount(amt);
                 setIsCustomMode(false);
@@ -308,21 +305,19 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
                   : 'border-border hover:border-primary/50'
               }`}
             >
-              <span className="text-sm font-bold">${amt}</span>
-              <span className="block text-xs text-muted-foreground">{amt * dollarRate}ج</span>
+              <div className="font-bold">${amt}</div>
+              <div className="text-xs text-muted-foreground">{amt * dollarRate}ج</div>
             </button>
           ))}
         </div>
         
         {/* مبلغ مخصص */}
-        <div className="relative">
+        <div className="space-y-1">
           <div className="flex items-center gap-2">
             <div className="relative flex-1">
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-bold">$</span>
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
               <input
                 type="number"
-                min={MIN_CUSTOM_AMOUNT}
-                step="1"
                 value={customAmount}
                 onChange={(e) => {
                   const val = e.target.value;
@@ -330,13 +325,13 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
                   setIsCustomMode(true);
                   const numVal = parseFloat(val);
                   if (!isNaN(numVal) && numVal > 0) {
-  setSelectedAmount(numVal);
-} else {
-  setSelectedAmount(null);
-}
+                    setSelectedAmount(numVal);
+                  } else {
+                    setSelectedAmount(null);
+                  }
                 }}
                 onFocus={() => setIsCustomMode(true)}
-                placeholder={`مبلغ آخر (الحد الأدنى $${MIN_CUSTOM_AMOUNT})`}
+                placeholder="أدخل مبلغ مخصص"
                 className={`w-full pr-8 pl-3 py-2 rounded-lg border text-sm bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all ${
                   isCustomMode && customAmount 
                     ? 'border-primary bg-primary/10' 
@@ -344,22 +339,22 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
                 }`}
               />
             </div>
-            {isCustomMode && customAmount && parseFloat(customAmount) >= MIN_CUSTOM_AMOUNT && (
-              <div className="flex-shrink-0 px-3 py-2 bg-primary/10 border border-primary/30 rounded-lg">
-                <span className="text-sm font-bold text-primary">
+            {isCustomMode && customAmount && parseFloat(customAmount) > 0 && (
+              <div className="bg-primary/10 px-3 py-2 rounded-lg">
+                <span className="text-sm font-medium text-primary">
                   {Math.round(parseFloat(customAmount) * dollarRate)}ج
                 </span>
               </div>
             )}
           </div>
-          {isCustomMode && customAmount && parseFloat(customAmount) < MIN_CUSTOM_AMOUNT && (
-            <p className="text-xs text-destructive mt-1">الحد الأدنى للإيداع ${MIN_CUSTOM_AMOUNT}</p>
+          {isCustomMode && customAmount && parseFloat(customAmount) <= 0 && (
+            <p className="text-xs text-destructive">المبلغ لازم يكون أكبر من صفر</p>
           )}
         </div>
       </div>
 
       {/* رقم/اسم المحول */}
-      <div>
+      <div className="space-y-1">
         <input
           type="text"
           value={senderReference}
@@ -370,31 +365,21 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
       </div>
 
       {/* رفع الصورة */}
-      <div>
-        <input type="file" accept="image/*" onChange={handleImageChange} className="hidden" id="proof" />
-        <label
-          htmlFor="proof"
-          className={`block p-3 border border-dashed rounded-lg text-center cursor-pointer transition-colors ${
-            proofImage ? 'border-green-500 bg-green-50 dark:bg-green-950/20' : 'border-border hover:border-primary/50'
-          }`}
-        >
+      <div className="space-y-2">
+        <input type="file" accept="image/*" onChange={handleImageChange} className="hidden" id="proof-upload" />
+        <label htmlFor="proof-upload" className={`flex items-center justify-center gap-2 p-3 rounded-lg border-2 border-dashed cursor-pointer transition-all ${proofImage ? 'border-green-500 bg-green-500/10' : 'border-border hover:border-primary/50'}`}>
           {proofImage ? (
-            <span className="text-xs text-green-700 dark:text-green-400">✓ تم رفع الإيصال</span>
+            <span className="text-green-500 font-medium">✓ تم رفع الإيصال</span>
           ) : (
-            <span className="text-xs text-muted-foreground flex items-center justify-center gap-1">
-              <Upload className="w-4 h-4" /> ارفع إيصال التحويل
+            <span className="text-muted-foreground">
+              <Upload className="w-5 h-5 inline ml-2" /> ارفع إيصال التحويل
             </span>
           )}
         </label>
       </div>
 
-      <Button
-        onClick={handleSubmit}
-        disabled={isSubmitting || !selectedAmount || !proofImage || !selectedMethod}
-        className="w-full"
-        size="sm"
-      >
-        {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : "إرسال"}
+      <Button onClick={handleSubmit} disabled={!selectedAmount || !proofImage || !selectedMethod || isSubmitting} className="w-full">
+        {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "إرسال"}
       </Button>
     </div>
   );
