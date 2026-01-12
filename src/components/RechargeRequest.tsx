@@ -329,11 +329,11 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
                   setCustomAmount(val);
                   setIsCustomMode(true);
                   const numVal = parseFloat(val);
-                  if (!isNaN(numVal) && numVal >= MIN_CUSTOM_AMOUNT) {
-                    setSelectedAmount(numVal);
-                  } else {
-                    setSelectedAmount(null);
-                  }
+                  if (!isNaN(numVal) && numVal > 0) {
+  setSelectedAmount(numVal);
+} else {
+  setSelectedAmount(null);
+}
                 }}
                 onFocus={() => setIsCustomMode(true)}
                 placeholder={`مبلغ آخر (الحد الأدنى $${MIN_CUSTOM_AMOUNT})`}
