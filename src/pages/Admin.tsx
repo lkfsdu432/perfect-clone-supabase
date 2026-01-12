@@ -76,6 +76,10 @@ interface Order {
   verification_link: string | null;
   response_message: string | null;
   quantity?: number;
+   delivered_email: string | null;
+  delivered_password: string | null;
+  admin_notes: string | null;
+  delivered_at: string | null; 
 }
 
 
@@ -120,11 +124,35 @@ const OrderCard = ({
   const [showPassword, setShowPassword] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const { toast } = useToast();
-
+const [deliveredEmail, setDeliveredEmail] = useState(order.delivered_email || '');
+const [deliveredPassword, setDeliveredPassword] = useState(order.delivered_password || '');
+const [adminNotes, setAdminNotes] = useState(order.admin_notes || '');
+const [isDelivering, setIsDelivering] = useState(false);\
   const handleSubmit = () => {
     onUpdateStatus(order.id, selectedStatus, message);
   };
-
+const handleDeliverData = async () => {
+  setIsDelivering(true);
+  try {
+    const { error } = await supabase
+      .from('orders')
+      .update({
+        delivered_email: deliveredEmail,
+        delivered_password: deliveredPassword,
+        admin_notes: adminNotes,
+        status: 'completed',
+        delivered_at: new Date().toISOString()
+      })
+      .eq('id', order.id);
+    
+    if (error) throw error;
+    toast({ title: 'تم التسليم بنجاح!' });
+    onUpdateStatus(order.id, 'completed', 'تم تسليم البيانات');
+  } catch (err) {
+    toast({ title: 'خطأ', description: 'فشل في التسليم', variant: 'destructive' });
+  }
+  setIsDelivering(false);
+};
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     toast({ title: 'تم النسخ', description: `تم نسخ ${label}` });
@@ -247,7 +275,45 @@ const OrderCard = ({
             </div>
           )}
         </div>
-
+{/* قسم تسليم البيانات - يظهر فقط للطلبات نوع chat */}
+{productOptions.find(o => o.id === order.product_option_id)?.type === 'chat' && (
+  <div className="p-4 bg-primary/5 rounded-xl border border-primary/20 space-y-3">
+    <h4 className="font-bold text-primary flex items-center gap-2">
+      <MessageCircle className="w-4 h-4" />
+      تسليم البيانات للعميل
+    </h4>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <input
+        type="email"
+        value={deliveredEmail}
+        onChange={(e) => setDeliveredEmail(e.target.value)}
+        placeholder="الإيميل المسلم"
+        className="input-field"
+      />
+      <input
+        type="text"
+        value={deliveredPassword}
+        onChange={(e) => setDeliveredPassword(e.target.value)}
+        placeholder="الباسورد المسلم"
+        className="input-field"
+      />
+    </div>
+    <textarea
+      value={adminNotes}
+      onChange={(e) => setAdminNotes(e.target.value)}
+      placeholder="ملاحظات للعميل (اختياري)"
+      className="input-field w-full h-20"
+    />
+    <button
+      onClick={handleDeliverData}
+      disabled={isDelivering || !deliveredEmail || !deliveredPassword}
+      className="btn-primary w-full py-2.5 flex items-center justify-center gap-2"
+    >
+      {isDelivering ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+      تسليم البيانات وإكمال الطلب
+    </button>
+  </div>
+)}
         {/* Actions */}
         <div className="flex flex-col sm:flex-row gap-3">
           <select
