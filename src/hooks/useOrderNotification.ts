@@ -90,10 +90,12 @@ const useOrderNotification = () => {
 
   const soundEnabledRef = useRef(false);
 
+  // Use refs to track last seen IDs - prevents duplicate notifications
   const lastOrderIdRef = useRef<string | number | null>(null);
   const lastRechargeIdRef = useRef<string | number | null>(null);
-  const lastOrderCountRef = useRef<number | null>(null);
-  const lastRechargeCountRef = useRef<number | null>(null);
+  // Track if realtime already notified to prevent polling double-notify
+  const realtimeNotifiedOrderRef = useRef<Set<string | number>>(new Set());
+  const realtimeNotifiedRechargeRef = useRef<Set<string | number>>(new Set());
 
   useEffect(() => {
     soundEnabledRef.current = soundEnabled;
@@ -146,10 +148,18 @@ const useOrderNotification = () => {
   // ─────────────────────────────────────────────────────────────────────────
 
   const notifyOrder = useCallback(
-    (id: string | number | null) => {
+    (id: string | number | null, fromRealtime = false) => {
       if (id === null || id === undefined) return;
       if (lastOrderIdRef.current === id) return;
+      // Check if realtime already notified this ID
+      if (realtimeNotifiedOrderRef.current.has(id)) return;
+      
       lastOrderIdRef.current = id;
+      if (fromRealtime) {
+        realtimeNotifiedOrderRef.current.add(id);
+        // Clean up old entries after 30 seconds
+        setTimeout(() => realtimeNotifiedOrderRef.current.delete(id), 30000);
+      }
       setNewOrdersCount((p) => p + 1);
       playOrder();
     },
@@ -157,10 +167,18 @@ const useOrderNotification = () => {
   );
 
   const notifyRecharge = useCallback(
-    (id: string | number | null) => {
+    (id: string | number | null, fromRealtime = false) => {
       if (id === null || id === undefined) return;
       if (lastRechargeIdRef.current === id) return;
+      // Check if realtime already notified this ID
+      if (realtimeNotifiedRechargeRef.current.has(id)) return;
+      
       lastRechargeIdRef.current = id;
+      if (fromRealtime) {
+        realtimeNotifiedRechargeRef.current.add(id);
+        // Clean up old entries after 30 seconds
+        setTimeout(() => realtimeNotifiedRechargeRef.current.delete(id), 30000);
+      }
       setNewOrdersCount((p) => p + 1);
       playRecharge();
     },
@@ -177,7 +195,7 @@ const useOrderNotification = () => {
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "orders" },
-        (payload: any) => notifyOrder(payload?.new?.id ?? null)
+        (payload: any) => notifyOrder(payload?.new?.id ?? null, true)
       )
       .subscribe();
 
@@ -186,7 +204,7 @@ const useOrderNotification = () => {
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "recharge_requests" },
-        (payload: any) => notifyRecharge(payload?.new?.id ?? null)
+        (payload: any) => notifyRecharge(payload?.new?.id ?? null, true)
       )
       .subscribe();
 
@@ -196,15 +214,15 @@ const useOrderNotification = () => {
     };
   }, [notifyOrder, notifyRecharge]);
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Polling fallback
+// ─────────────────────────────────────────────────────────────────────────
+  // Polling fallback - only ID based to prevent double counting
   // ─────────────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     let alive = true;
 
-    const fetchSnapshot = async () => {
-      const [oLatest, rLatest, oCount, rCount] = await Promise.all([
+    const fetchLatestIds = async () => {
+      const [oLatest, rLatest] = await Promise.all([
         supabase
           .from("orders")
           .select("id")
@@ -217,58 +235,35 @@ const useOrderNotification = () => {
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle(),
-        supabase.from("orders").select("id", { count: "exact", head: true }),
-        supabase.from("recharge_requests").select("id", { count: "exact", head: true }),
       ]);
       return {
         latestOrderId: (oLatest.data as any)?.id ?? null,
         latestRechargeId: (rLatest.data as any)?.id ?? null,
-        orderCount: oCount.count ?? null,
-        rechargeCount: rCount.count ?? null,
       };
     };
 
     const init = async () => {
-      const s = await fetchSnapshot();
+      const s = await fetchLatestIds();
       if (!alive) return;
-      lastOrderIdRef.current = s.latestOrderId ?? lastOrderIdRef.current;
-      lastRechargeIdRef.current = s.latestRechargeId ?? lastRechargeIdRef.current;
-      if (typeof s.orderCount === "number") lastOrderCountRef.current = s.orderCount;
-      if (typeof s.rechargeCount === "number") lastRechargeCountRef.current = s.rechargeCount;
+      // Initialize refs without triggering notifications
+      if (s.latestOrderId && !lastOrderIdRef.current) {
+        lastOrderIdRef.current = s.latestOrderId;
+      }
+      if (s.latestRechargeId && !lastRechargeIdRef.current) {
+        lastRechargeIdRef.current = s.latestRechargeId;
+      }
     };
 
     const poll = async () => {
-      const s = await fetchSnapshot();
+      const s = await fetchLatestIds();
       if (!alive) return;
 
-      // ID‑based check
+      // Only ID-based check to prevent duplicate notifications
       if (s.latestOrderId && s.latestOrderId !== lastOrderIdRef.current) {
         notifyOrder(s.latestOrderId);
       }
       if (s.latestRechargeId && s.latestRechargeId !== lastRechargeIdRef.current) {
         notifyRecharge(s.latestRechargeId);
-      }
-
-      // Count‑based fallback
-      if (typeof s.orderCount === "number") {
-        const prev = lastOrderCountRef.current;
-        if (typeof prev === "number" && s.orderCount > prev) {
-          if (!s.latestOrderId || s.latestOrderId === lastOrderIdRef.current) {
-            setNewOrdersCount((p) => p + 1);
-            playOrder();
-          }
-        }
-        lastOrderCountRef.current = s.orderCount;
-      }
-      if (typeof s.rechargeCount === "number") {
-        const prev = lastRechargeCountRef.current;
-        if (typeof prev === "number" && s.rechargeCount > prev) {
-          if (!s.latestRechargeId || s.latestRechargeId === lastRechargeIdRef.current) {
-            setNewOrdersCount((p) => p + 1);
-            playRecharge();
-          }
-        }
-        lastRechargeCountRef.current = s.rechargeCount;
       }
     };
 
@@ -278,7 +273,7 @@ const useOrderNotification = () => {
       alive = false;
       window.clearInterval(interval);
     };
-  }, [notifyOrder, notifyRecharge, playOrder, playRecharge]);
+  }, [notifyOrder, notifyRecharge]);
 
   // ─────────────────────────────────────────────────────────────────────────
 
