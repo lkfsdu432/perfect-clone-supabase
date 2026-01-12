@@ -1637,13 +1637,14 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
                     <p className="text-sm">الرصيد المتبقي: <span className="font-bold">${tokenBalance}</span></p>
                   </div>
                   {/* عرض البيانات المسلمة */}
-{activeOrder?.delivered_email && (
+{(activeOrder?.delivered_email || activeOrder?.delivered_password || activeOrder?.admin_notes) && (
   <div className="space-y-3 text-right bg-muted/50 rounded-xl p-4 mt-4">
     <h4 className="font-bold text-primary flex items-center justify-end gap-2">
       📦 بيانات حسابك
     </h4>
     <div className="space-y-2">
-      <div className="flex items-center justify-between bg-background p-3 rounded-lg">
+      {activeOrder.delivered_email && (
+  <div className="flex items-center justify-between bg-background p-3 rounded-lg">
         <button 
           onClick={() => {
             navigator.clipboard.writeText(activeOrder.delivered_email!);
