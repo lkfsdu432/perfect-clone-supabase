@@ -69,6 +69,10 @@ interface ActiveOrder {
   product_option_id: string | null;
   amount: number;
   verification_link?: string | null;
+    delivered_email: string | null;
+  delivered_password: string | null;
+  admin_notes: string | null;
+  delivered_at: string | null;
 }
 
 interface RefundRequest {
@@ -1632,6 +1636,52 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
                   <div className="p-3 rounded-lg bg-muted">
                     <p className="text-sm">الرصيد المتبقي: <span className="font-bold">${tokenBalance}</span></p>
                   </div>
+                  {/* عرض البيانات المسلمة */}
+{activeOrder?.delivered_email && (
+  <div className="space-y-3 text-right bg-muted/50 rounded-xl p-4 mt-4">
+    <h4 className="font-bold text-primary flex items-center justify-end gap-2">
+      📦 بيانات حسابك
+    </h4>
+    <div className="space-y-2">
+      <div className="flex items-center justify-between bg-background p-3 rounded-lg">
+        <button 
+          onClick={() => {
+            navigator.clipboard.writeText(activeOrder.delivered_email!);
+            toast({ title: 'تم النسخ!' });
+          }}
+          className="p-1 hover:bg-muted rounded"
+        >
+          <Copy className="w-4 h-4" />
+        </button>
+        <div className="text-right">
+          <span className="text-xs text-muted-foreground">الإيميل</span>
+          <p className="font-mono">{activeOrder.delivered_email}</p>
+        </div>
+      </div>
+      <div className="flex items-center justify-between bg-background p-3 rounded-lg">
+        <button 
+          onClick={() => {
+            navigator.clipboard.writeText(activeOrder.delivered_password!);
+            toast({ title: 'تم النسخ!' });
+          }}
+          className="p-1 hover:bg-muted rounded"
+        >
+          <Copy className="w-4 h-4" />
+        </button>
+        <div className="text-right">
+          <span className="text-xs text-muted-foreground">الباسورد</span>
+          <p className="font-mono">{activeOrder.delivered_password}</p>
+        </div>
+      </div>
+      {activeOrder.admin_notes && (
+        <div className="p-3 bg-primary/10 rounded-lg text-sm text-right">
+          <span className="text-xs text-muted-foreground">ملاحظات</span>
+          <p>{activeOrder.admin_notes}</p>
+        </div>
+      )}
+    </div>
+  </div>
+)}  
                 </>
               ) : (
                 <>
