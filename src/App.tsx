@@ -16,10 +16,20 @@ const queryClient = new QueryClient();
 const App = () => {
   // تتبع الزيارات
   useEffect(() => {
-    supabase.from("visits").insert({
-      page: window.location.pathname,
-      user_agent: navigator.userAgent
-    });
+    const trackVisit = async () => {
+      try {
+        const { error } = await supabase.from("visits").insert({
+          page: window.location.pathname,
+          user_agent: navigator.userAgent
+        });
+        if (error) {
+          console.error('Visit tracking error:', error);
+        }
+      } catch (err) {
+        console.error('Visit tracking failed:', err);
+      }
+    };
+    trackVisit();
   }, []);
 
   return (

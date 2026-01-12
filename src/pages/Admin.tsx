@@ -830,30 +830,37 @@ const Admin = () => {
     today.setHours(0, 0, 0, 0);
     const todayISO = today.toISOString();
 
-    // Get today's orders
-    const { data: todayOrders } = await supabase
-      .from('orders')
-      .select('*')
-      .gte('created_at', todayISO);
+    // Get today's orders and recharges in parallel
+    const [ordersResult, rechargesResult] = await Promise.all([
+      supabase
+        .from('orders')
+        .select('*')
+        .gte('created_at', todayISO),
+      supabase
+        .from('recharge_requests')
+        .select('id')
+        .gte('created_at', todayISO)
+    ]);
 
-    if (todayOrders) {
-      const totalEarnings = todayOrders
-        .filter(o => o.status === 'completed')
-        .reduce((sum, o) => sum + Number(o.amount || o.total_price), 0);
+    const todayOrders = ordersResult.data || [];
+    const todayRecharges = rechargesResult.data || [];
 
-      const completedOrders = todayOrders.filter(o => o.status === 'completed').length;
-      const totalOrders = todayOrders.length;
+    const totalEarnings = todayOrders
+      .filter(o => o.status === 'completed')
+      .reduce((sum, o) => sum + Number(o.amount || o.total_price), 0);
 
-      // Count recharges (orders with token_id)
-      const totalRecharges = todayOrders.filter(o => o.token_id).length;
+    const completedOrders = todayOrders.filter(o => o.status === 'completed').length;
+    const totalOrders = todayOrders.length;
 
-      setTodayStats({
-        totalEarnings,
-        totalOrders,
-        totalRecharges,
-        completedOrders
-      });
-    }
+    // Count actual recharge requests from recharge_requests table
+    const totalRecharges = todayRecharges.length;
+
+    setTodayStats({
+      totalEarnings,
+      totalOrders,
+      totalRecharges,
+      completedOrders
+    });
   };
 
   useEffect(() => {
