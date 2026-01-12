@@ -363,6 +363,69 @@ const handleDeliverData = async () => {
             <OrderChat orderId={order.id} senderType="admin" />
           </div>
         )}
+                {/* Data Delivery Section for Chat/Data orders */}
+        {order.status === 'in_progress' && (() => {
+          const option = productOptions.find(o => o.id === order.product_option_id);
+          if (option?.type !== 'chat') return null;
+          
+          return (
+            <div className="pt-4 border-t border-border space-y-3">
+              <h4 className="text-sm font-semibold flex items-center gap-2">
+                <Key className="w-4 h-4 text-primary" />
+                تسليم البيانات للعميل
+              </h4>
+              <div className="grid gap-3">
+                <input
+                  type="email"
+                  placeholder="الإيميل المسلم"
+                  className="input-field text-sm"
+                  defaultValue={order.delivered_email || ''}
+                  id={`del-email-${order.id}`}
+                />
+                <input
+                  type="text"
+                  placeholder="الباسورد المسلم"
+                  className="input-field text-sm"
+                  defaultValue={order.delivered_password || ''}
+                  id={`del-pass-${order.id}`}
+                />
+                <textarea
+                  placeholder="ملاحظات للعميل (اختياري)"
+                  className="input-field text-sm h-20"
+                  defaultValue={order.admin_notes || ''}
+                  id={`del-notes-${order.id}`}
+                />
+                <button
+                  onClick={async () => {
+                    const email = (document.getElementById(`del-email-${order.id}`) as HTMLInputElement)?.value;
+                    const pass = (document.getElementById(`del-pass-${order.id}`) as HTMLInputElement)?.value;
+                    const notes = (document.getElementById(`del-notes-${order.id}`) as HTMLTextAreaElement)?.value;
+                    
+                    const { error } = await supabase
+                      .from('orders')
+                      .update({
+                        delivered_email: email || null,
+                        delivered_password: pass || null,
+                        admin_notes: notes || null,
+                        delivered_at: new Date().toISOString()
+                      })
+                      .eq('id', order.id);
+                    
+                    if (error) {
+                      toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
+                    } else {
+                      toast({ title: 'تم حفظ بيانات التسليم' });
+                    }
+                  }}
+                  className="btn-primary py-2 flex items-center justify-center gap-2"
+                >
+                  <Save className="w-4 h-4" />
+                  حفظ البيانات
+                </button>
+              </div>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
