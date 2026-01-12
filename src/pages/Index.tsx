@@ -1166,8 +1166,8 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
       selectedOption.type === 'chat' 
         ? 'bg-primary text-primary-foreground' 
         : (selectedOption.type === 'none' || !selectedOption.type) 
-          ? 'bg-emerald-600 text-white' 
-          : 'bg-amber-500 text-white'
+          ? 'bg-success text-success-foreground' 
+          : 'bg-info text-info-foreground'
     }`}>
       نوع التسليم: {selectedOption.type === 'chat' ? 'شات' : (selectedOption.type === 'none' || !selectedOption.type) ? 'فوري' : 'يدوي'}
     </span>
