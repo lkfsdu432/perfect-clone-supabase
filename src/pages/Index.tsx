@@ -2052,6 +2052,56 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
                                         </pre>
                                       </div>
                                     )}
+                                      {/* عرض البيانات المسلمة في السجل */}
+{((order as any).delivered_email || (order as any).delivered_password || (order as any).admin_notes) && (
+  <div className="mt-2 p-2 bg-primary/10 rounded-lg border border-primary/20">
+    <p className="text-xs font-medium text-primary mb-2 flex items-center gap-1">
+      📦 بيانات الحساب
+    </p>
+    <div className="space-y-1.5">
+      {(order as any).delivered_email && (
+        <div className="flex items-center justify-between bg-background p-2 rounded text-xs">
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText((order as any).delivered_email);
+              toast({ title: 'تم النسخ!' });
+            }}
+            className="p-1 hover:bg-muted rounded"
+          >
+            <Copy className="w-3 h-3" />
+          </button>
+          <div className="text-right">
+            <span className="text-muted-foreground">الإيميل:</span>
+            <span className="font-mono mr-1">{(order as any).delivered_email}</span>
+          </div>
+        </div>
+      )}
+      {(order as any).delivered_password && (
+        <div className="flex items-center justify-between bg-background p-2 rounded text-xs">
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText((order as any).delivered_password);
+              toast({ title: 'تم النسخ!' });
+            }}
+            className="p-1 hover:bg-muted rounded"
+          >
+            <Copy className="w-3 h-3" />
+          </button>
+          <div className="text-right">
+            <span className="text-muted-foreground">الباسورد:</span>
+            <span className="font-mono mr-1">{(order as any).delivered_password}</span>
+          </div>
+        </div>
+      )}
+      {(order as any).admin_notes && (
+        <div className="p-2 bg-muted/50 rounded text-xs text-right">
+          <span className="text-muted-foreground">ملاحظات:</span>
+          <p className="mt-0.5">{(order as any).admin_notes}</p>
+        </div>
+      )}
+    </div>
+  </div>
+)}
                                       {refund && (
                                         <div className="mt-2 p-2 rounded-lg border border-orange-200 bg-orange-50">
                                           <div className="flex items-center justify-between">
