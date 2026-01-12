@@ -4,7 +4,8 @@ import { Upload, Loader2, CheckCircle, Copy, Wallet, CreditCard, Bitcoin } from 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-const AMOUNTS = [5, 10, 15, 20];
+const PRESET_AMOUNTS = [5, 10, 15, 20];
+const MIN_CUSTOM_AMOUNT = 5;
 const TOKEN_STORAGE_KEY = 'user_token';
 
 interface PaymentMethod {
@@ -33,6 +34,8 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null);
+  const [customAmount, setCustomAmount] = useState<string>("");
+  const [isCustomMode, setIsCustomMode] = useState(false);
   const [proofImage, setProofImage] = useState<File | null>(null);
   const [senderReference, setSenderReference] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -204,6 +207,8 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
             setProofImage(null);
             setSenderReference("");
             setGeneratedToken(null);
+            setCustomAmount("");
+            setIsCustomMode(false);
           }}
         >
           إرسال طلب شحن آخر
@@ -286,22 +291,71 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
       )}
 
       {/* اختيار المبلغ */}
-      <div className="grid grid-cols-4 gap-2">
-        {AMOUNTS.map((amt) => (
-          <button
-            key={amt}
-            type="button"
-            onClick={() => setSelectedAmount(amt)}
-            className={`p-2 rounded-lg border text-center transition-all ${
-              selectedAmount === amt
-                ? 'border-primary bg-primary/10 text-primary font-bold'
-                : 'border-border hover:border-primary/50'
-            }`}
-          >
-            <span className="text-sm font-bold">${amt}</span>
-            <span className="block text-xs text-muted-foreground">{amt * dollarRate}ج</span>
-          </button>
-        ))}
+      <div className="space-y-2">
+        <div className="grid grid-cols-4 gap-2">
+          {PRESET_AMOUNTS.map((amt) => (
+            <button
+              key={amt}
+              type="button"
+              onClick={() => {
+                setSelectedAmount(amt);
+                setIsCustomMode(false);
+                setCustomAmount("");
+              }}
+              className={`p-2 rounded-lg border text-center transition-all ${
+                selectedAmount === amt && !isCustomMode
+                  ? 'border-primary bg-primary/10 text-primary font-bold'
+                  : 'border-border hover:border-primary/50'
+              }`}
+            >
+              <span className="text-sm font-bold">${amt}</span>
+              <span className="block text-xs text-muted-foreground">{amt * dollarRate}ج</span>
+            </button>
+          ))}
+        </div>
+        
+        {/* مبلغ مخصص */}
+        <div className="relative">
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-bold">$</span>
+              <input
+                type="number"
+                min={MIN_CUSTOM_AMOUNT}
+                step="1"
+                value={customAmount}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setCustomAmount(val);
+                  setIsCustomMode(true);
+                  const numVal = parseFloat(val);
+                  if (!isNaN(numVal) && numVal >= MIN_CUSTOM_AMOUNT) {
+                    setSelectedAmount(numVal);
+                  } else {
+                    setSelectedAmount(null);
+                  }
+                }}
+                onFocus={() => setIsCustomMode(true)}
+                placeholder={`مبلغ آخر (الحد الأدنى $${MIN_CUSTOM_AMOUNT})`}
+                className={`w-full pr-8 pl-3 py-2 rounded-lg border text-sm bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all ${
+                  isCustomMode && customAmount 
+                    ? 'border-primary bg-primary/10' 
+                    : 'border-border'
+                }`}
+              />
+            </div>
+            {isCustomMode && customAmount && parseFloat(customAmount) >= MIN_CUSTOM_AMOUNT && (
+              <div className="flex-shrink-0 px-3 py-2 bg-primary/10 border border-primary/30 rounded-lg">
+                <span className="text-sm font-bold text-primary">
+                  {Math.round(parseFloat(customAmount) * dollarRate)}ج
+                </span>
+              </div>
+            )}
+          </div>
+          {isCustomMode && customAmount && parseFloat(customAmount) < MIN_CUSTOM_AMOUNT && (
+            <p className="text-xs text-destructive mt-1">الحد الأدنى للإيداع ${MIN_CUSTOM_AMOUNT}</p>
+          )}
+        </div>
       </div>
 
       {/* رقم/اسم المحول */}
