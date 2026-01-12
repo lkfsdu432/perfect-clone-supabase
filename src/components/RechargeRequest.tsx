@@ -165,20 +165,20 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
 
   if (isSubmitted && generatedToken) {
     return (
-      <div className="space-y-6">
-        <div className="text-center py-8">
-          <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+      <div className="space-y-6 text-center py-4">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center">
             <CheckCircle className="w-8 h-8 text-green-500" />
           </div>
           <div>
-            <h3 className="text-xl font-bold text-green-500 mb-2">تم إرسال طلب الشحن!</h3>
-            <p className="text-muted-foreground">سيتم إضافة الرصيد بعد المراجعة</p>
+            <h3 className="text-xl font-bold text-foreground">تم إرسال طلب الشحن!</h3>
+            <p className="text-muted-foreground mt-1">سيتم إضافة الرصيد بعد المراجعة</p>
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/30 rounded-xl p-6">
-          <p className="text-center text-sm font-medium text-primary mb-4">⚠️ احتفظ بهذا التوكن - ستحتاجه للشراء والشحن</p>
-          <div className="flex items-center justify-center gap-3 bg-background/80 rounded-lg p-4 border">
+        <div className="bg-gradient-to-br from-primary/10 to-primary/5 rounded-2xl p-6 border border-primary/20">
+          <p className="text-sm text-muted-foreground mb-3">⚠️ احتفظ بهذا التوكن - ستحتاجه للشراء والشحن</p>
+          <div className="flex items-center justify-center gap-3 bg-background/80 backdrop-blur rounded-xl p-4">
             <span className="font-mono text-xl font-bold tracking-wider text-foreground">
               {generatedToken}
             </span>
@@ -189,10 +189,10 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
               <Copy className="w-5 h-5 text-muted-foreground" />
             </button>
           </div>
-          <p className="text-center text-xs text-muted-foreground mt-4">تم حفظ التوكن تلقائياً في متصفحك</p>
-          <div className="mt-4">
-            <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
-              <p className="text-xs text-yellow-600 dark:text-yellow-400 text-center">
+          <p className="text-xs text-muted-foreground mt-3">تم حفظ التوكن تلقائياً في متصفحك</p>
+          <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+            <div className="flex items-start gap-2">
+              <p className="text-xs text-amber-600 dark:text-amber-400 text-right">
                 ⏰ مدة صلاحية التوكن 30 يوم فقط من تاريخ آخر شحن. الرصيد المتبقي بعد انتهاء المدة سيتم فقدانه.
               </p>
             </div>
@@ -200,8 +200,8 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
         </div>
 
         <Button
-          className="w-full"
           variant="outline"
+          className="w-full"
           onClick={() => {
             setIsSubmitted(false);
             setSelectedAmount(null);
@@ -221,9 +221,9 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
 
   if (isSubmitted && !generatedToken) {
     return (
-      <div className="text-center py-8">
-        <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-        <h3 className="text-xl font-bold text-green-500 mb-2">تم إرسال طلب الشحن!</h3>
+      <div className="text-center py-8 space-y-4">
+        <CheckCircle className="w-16 h-16 text-green-500 mx-auto" />
+        <h3 className="text-xl font-bold text-foreground">تم إرسال طلب الشحن!</h3>
         <p className="text-muted-foreground">سيتم إضافة الرصيد بعد المراجعة</p>
       </div>
     );
@@ -261,13 +261,13 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
         })}
       </div>
 
-      {/* معلومات طريقة الدفع */}
+      {/* معلومات طريقة الدفع - الجزء المعدل */}
       {selectedMethod && (
-        <div className="bg-muted/50 border border-border rounded-xl p-4 space-y-3">
+        <div className="bg-muted/50 rounded-xl p-4 space-y-3 overflow-hidden">
           {selectedMethod.account_number && (
-            <div className="flex items-center gap-2">
-              <div className="flex-1 bg-background rounded-lg px-3 py-2 border border-border">
-                <span className="font-mono text-sm select-all">
+            <div className="flex items-start gap-2 w-full max-w-full overflow-hidden">
+              <div className="flex-1 min-w-0 overflow-hidden">
+                <span className="text-sm font-medium text-foreground break-all block w-full">
                   {selectedMethod.account_number}
                 </span>
               </div>
@@ -276,7 +276,7 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
                   navigator.clipboard.writeText(selectedMethod.account_number || '');
                   toast.success("تم نسخ الرقم!");
                 }}
-                className="p-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg transition-colors"
+                className="p-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg transition-colors flex-shrink-0"
                 title="نسخ"
               >
                 <Copy className="w-4 h-4" />
@@ -284,10 +284,10 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
             </div>
           )}
           {selectedMethod.account_name && (
-            <p className="text-sm text-muted-foreground text-center">{selectedMethod.account_name}</p>
+            <p className="text-sm text-muted-foreground">{selectedMethod.account_name}</p>
           )}
           {selectedMethod.instructions && (
-            <p className="text-xs text-muted-foreground text-center bg-background/50 rounded-lg p-2">{selectedMethod.instructions}</p>
+            <p className="text-xs text-muted-foreground">{selectedMethod.instructions}</p>
           )}
         </div>
       )}
@@ -309,7 +309,7 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
                   : 'border-border hover:border-primary/50'
               }`}
             >
-              <p className="font-bold text-base">${amt}</p>
+              <p className="font-bold">${amt}</p>
               <p className="text-xs text-muted-foreground">{amt * dollarRate}ج</p>
             </button>
           ))}
@@ -317,12 +317,10 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
         
         {/* مبلغ مخصص */}
         <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <div className={`flex-1 relative rounded-xl border transition-all ${
-              isCustomMode && customAmount 
-                ? 'border-primary bg-primary/5' 
-                : 'border-border'
-            }`}>
+          <div className={`flex items-center gap-2 rounded-xl border transition-all ${
+            isCustomMode ? 'border-primary bg-primary/5' : 'border-border'
+          }`}>
+            <div className="flex-1 relative">
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
               <input
                 type="number"
@@ -344,21 +342,21 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
               />
             </div>
             {isCustomMode && customAmount && parseFloat(customAmount) > 0 && (
-              <div className="bg-primary/10 text-primary px-4 py-3 rounded-xl border border-primary/30">
-                <span className="font-bold text-sm whitespace-nowrap">
+              <div className="px-3 py-1 bg-primary/10 rounded-lg ml-2">
+                <span className="text-sm font-medium text-primary">
                   {Math.round(parseFloat(customAmount) * dollarRate)}ج
                 </span>
               </div>
             )}
           </div>
           {isCustomMode && customAmount && parseFloat(customAmount) <= 0 && (
-            <p className="text-xs text-red-500 text-center">المبلغ لازم يكون أكبر من صفر</p>
+            <p className="text-xs text-red-500">المبلغ لازم يكون أكبر من صفر</p>
           )}
         </div>
       </div>
 
       {/* رقم/اسم المحول */}
-      <div>
+      <div className="space-y-2">
         <input
           type="text"
           value={senderReference}
@@ -369,32 +367,26 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
       </div>
 
       {/* رفع الصورة */}
-      <div className="relative">
-        <input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={handleImageChange} />
-        <div className={`w-full py-4 rounded-xl border-2 border-dashed text-center transition-all ${
-          proofImage 
-            ? 'border-green-500 bg-green-500/10 text-green-600' 
-            : 'border-border hover:border-primary/50'
+      <div className="space-y-2">
+        <input type="file" id="proof" accept="image/*" onChange={handleImageChange} className="hidden" />
+        <label htmlFor="proof" className={`flex items-center justify-center gap-2 w-full py-4 rounded-xl border-2 border-dashed cursor-pointer transition-all ${
+          proofImage ? 'border-green-500 bg-green-500/10' : 'border-border hover:border-primary/50'
         }`}>
           {proofImage ? (
-            <span className="flex items-center justify-center gap-2 font-medium">
+            <span className="flex items-center gap-2 text-green-500 font-medium">
               <CheckCircle className="w-5 h-5" />
               تم رفع الإيصال
             </span>
           ) : (
-            <span className="flex items-center justify-center gap-2 text-muted-foreground">
+            <span className="flex items-center gap-2 text-muted-foreground">
               <Upload className="w-5 h-5" /> ارفع إيصال التحويل
             </span>
           )}
-        </div>
+        </label>
       </div>
 
-      <Button 
-        onClick={handleSubmit} 
-        disabled={!selectedAmount || !proofImage || !selectedMethod || isSubmitting} 
-        className="w-full py-6 text-base font-bold rounded-xl"
-      >
-        {isSubmitting ? <Loader2 className="animate-spin" /> : "إرسال"}
+      <Button onClick={handleSubmit} disabled={!selectedAmount || !proofImage || !selectedMethod || isSubmitting} className="w-full py-6 text-lg">
+        {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "إرسال"}
       </Button>
     </div>
   );
