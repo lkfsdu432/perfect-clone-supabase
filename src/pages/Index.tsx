@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import Header from '@/components/Header';
 import NewsSection from '@/components/NewsSection';
 import { supabase } from '@/integrations/supabase/client';
-import { ShoppingCart, Search, CheckCircle, AlertCircle, Loader2, Clock, XCircle, CheckCircle2, Copy, MessageCircle, Ticket, Ban, CreditCard, RotateCcw } from 'lucide-react';
+import { ShoppingCart, Search, CheckCircle, AlertCircle, Loader2, Clock, XCircle, CheckCircle2, Copy, MessageCircle, Ticket, Ban, CreditCard, RotateCcw, Download } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -114,6 +114,7 @@ const Index = () => {
   const [tokenRefunds, setTokenRefunds] = useState<RefundRequest[]>([]);
   const [optionStockCounts, setOptionStockCounts] = useState<Record<string, number>>({});
   const [quantity, setQuantity] = useState(1);
+  const [chatAccountsCount, setChatAccountsCount] = useState(1); // عدد الحسابات للشات
   const [activeOrder, setActiveOrder] = useState<ActiveOrder | null>(null);
   const [checkingActiveOrder, setCheckingActiveOrder] = useState(true);
   const [couponCode, setCouponCode] = useState('');
@@ -147,7 +148,11 @@ const [requiredTextInstructions, setRequiredTextInstructions] = useState('');
           if (orderData.status === 'pending' || orderData.status === 'in_progress') {
             setActiveOrder({
               ...orderData,
-              amount: orderData.amount || orderData.total_price
+              amount: orderData.amount || orderData.total_price,
+              delivered_email: (orderData as any).delivered_email || null,
+              delivered_password: (orderData as any).delivered_password || null,
+              admin_notes: (orderData as any).admin_notes || null,
+              delivered_at: (orderData as any).delivered_at || null
             });
             setToken(tokenValue);
             
@@ -273,6 +278,10 @@ supabase.from('settings').select('value').eq('key', 'required_text_instructions'
       const synced: ActiveOrder = {
         ...data,
         amount: (data as any).amount ?? (data as any).total_price ?? activeOrder.amount,
+        delivered_email: (data as any).delivered_email || null,
+        delivered_password: (data as any).delivered_password || null,
+        admin_notes: (data as any).admin_notes || null,
+        delivered_at: (data as any).delivered_at || null
       };
 
       // قلل الـ rerenders
@@ -598,8 +607,11 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
       return;
     }
 
-    // For manual delivery products
-    const manualTotalPrice = Number(selectedOption.price) - calculateDiscount(Number(selectedOption.price));
+    // For manual delivery products (including chat)
+    const isChatType = selectedOption.type === 'chat';
+    const chatQuantity = isChatType ? chatAccountsCount : 1;
+    const manualBasePrice = Number(selectedOption.price) * chatQuantity;
+    const manualTotalPrice = manualBasePrice - calculateDiscount(manualBasePrice);
 
     const { data: orderData, error: orderError } = await supabase.from('orders').insert({
       token_id: tokenData.id,
@@ -608,9 +620,10 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
       email: selectedOption.type === 'email_password' ? email : null,
       password: selectedOption.type === 'email_password' ? password : null,
       verification_link: selectedOption.type === 'link' ? verificationLink : (selectedOption.type === 'text' ? textInput : null),
+      quantity: isChatType ? chatQuantity : 1,
       amount: manualTotalPrice,
       total_price: manualTotalPrice,
-      discount_amount: calculateDiscount(Number(selectedOption.price)),
+      discount_amount: calculateDiscount(manualBasePrice),
       coupon_code: appliedCoupon?.code || null,
       status: 'pending'
     }).select('id, order_number').single();
@@ -673,7 +686,11 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
       response_message: null,
       product_id: product.id,
       product_option_id: selectedOption.id,
-      amount: manualTotalPrice
+      amount: manualTotalPrice,
+      delivered_email: null,
+      delivered_password: null,
+      admin_notes: null,
+      delivered_at: null
     });
 
     setTokenBalance(newBalance);
@@ -1492,6 +1509,37 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
                 </div>
               )}
 
+              {selectedOption.type === 'chat' && (
+                <div className="space-y-3">
+                  <div className="p-3 bg-primary/5 rounded-lg border border-primary/20">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium">عدد الحسابات المطلوبة:</span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setChatAccountsCount(c => Math.max(1, c - 1))}
+                          className="w-8 h-8 rounded-lg border border-border hover:bg-muted flex items-center justify-center"
+                          disabled={chatAccountsCount <= 1 || !!activeOrder}
+                        >-</button>
+                        <span className="w-8 text-center font-bold">{chatAccountsCount}</span>
+                        <button
+                          type="button"
+                          onClick={() => setChatAccountsCount(c => c + 1)}
+                          className="w-8 h-8 rounded-lg border border-border hover:bg-muted flex items-center justify-center"
+                          disabled={!!activeOrder}
+                        >+</button>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      الإجمالي: ${(Number(selectedOption.price) * chatAccountsCount).toFixed(2)}
+                    </p>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    الوقت المتوقع: {selectedOption.estimated_time}
+                  </p>
+                </div>
+              )}
+
               {selectedOption.type === 'text' && (
                 <div>
                   <label className="block text-sm font-medium mb-2">النص المطلوب</label>
@@ -2046,10 +2094,61 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
                                     </div>
                                                                           {order.response_message && (
                                       <div className="mt-2 p-2 bg-success/10 rounded-lg border border-success/20">
-                                        <p className="text-xs font-medium text-success mb-1">المنتجات المستلمة:</p>
-                                        <pre className="text-xs text-foreground whitespace-pre-wrap font-mono bg-background p-2 rounded">
-                                          {order.response_message}
-                                        </pre>
+                                        <div className="flex items-center justify-between mb-2">
+                                          <p className="text-xs font-medium text-success">المنتجات المستلمة:</p>
+                                          <div className="flex items-center gap-1">
+                                            <button
+                                              onClick={() => {
+                                                navigator.clipboard.writeText(order.response_message || '');
+                                                toast({ title: 'تم النسخ!' });
+                                              }}
+                                              className="p-1.5 bg-background hover:bg-muted rounded text-muted-foreground"
+                                              title="نسخ الكل"
+                                            >
+                                              <Copy className="w-3 h-3" />
+                                            </button>
+                                            <button
+                                              onClick={() => {
+                                                const content = order.response_message || '';
+                                                const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+                                                const url = URL.createObjectURL(blob);
+                                                const a = document.createElement('a');
+                                                a.href = url;
+                                                a.download = `order-${order.order_number}.txt`;
+                                                document.body.appendChild(a);
+                                                a.click();
+                                                document.body.removeChild(a);
+                                                URL.revokeObjectURL(url);
+                                                toast({ title: 'تم التنزيل!' });
+                                              }}
+                                              className="p-1.5 bg-background hover:bg-muted rounded text-muted-foreground"
+                                              title="تنزيل كملف"
+                                            >
+                                              <Download className="w-3 h-3" />
+                                            </button>
+                                          </div>
+                                        </div>
+                                        <div className="space-y-1.5">
+                                          {order.response_message.split('\n').map((line, idx, arr) => (
+                                            <div key={idx}>
+                                              <div className="flex items-center justify-between bg-background p-2 rounded text-xs">
+                                                <button
+                                                  onClick={() => {
+                                                    navigator.clipboard.writeText(line);
+                                                    toast({ title: 'تم النسخ!' });
+                                                  }}
+                                                  className="p-1 hover:bg-muted rounded"
+                                                >
+                                                  <Copy className="w-3 h-3" />
+                                                </button>
+                                                <span className="font-mono text-foreground flex-1 text-right mr-2">{line}</span>
+                                              </div>
+                                              {idx < arr.length - 1 && (
+                                                <div className="border-t border-dashed border-success/30 my-1" />
+                                              )}
+                                            </div>
+                                          ))}
+                                        </div>
                                       </div>
                                     )}
                                       {/* عرض البيانات المسلمة في السجل */}

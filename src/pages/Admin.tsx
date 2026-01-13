@@ -76,10 +76,11 @@ interface Order {
   verification_link: string | null;
   response_message: string | null;
   quantity?: number;
-   delivered_email: string | null;
+  delivered_email: string | null;
   delivered_password: string | null;
   admin_notes: string | null;
-  delivered_at: string | null; 
+  delivered_at: string | null;
+  token_value?: string; // التوكن المرتبط بالطلب
 }
 
 
@@ -221,6 +222,12 @@ const handleDeliverData = async () => {
           <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-lg font-mono">
             طلب #{order.order_number}
           </span>
+          {(order as any).token_value && (
+            <span className="text-xs bg-muted text-muted-foreground px-2 py-1 rounded-lg font-mono flex items-center gap-1">
+              <Key className="w-3 h-3" />
+              {(order as any).token_value}
+            </span>
+          )}
         </div>
 
         {/* Amount & Verification Link */}
@@ -861,6 +868,25 @@ const Admin = () => {
     completedOrders: 0
   });
 
+  // Custom date range for stats
+  const [statsStartDate, setStatsStartDate] = useState(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return today.toISOString().split('T')[0];
+  });
+  const [statsEndDate, setStatsEndDate] = useState(() => {
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    return today.toISOString().split('T')[0];
+  });
+  const [customStats, setCustomStats] = useState({
+    totalEarnings: 0,
+    totalOrders: 0,
+    totalRecharges: 0,
+    completedOrders: 0
+  });
+  const [loadingCustomStats, setLoadingCustomStats] = useState(false);
+
   // Order filter state
   const [orderStatusFilter, setOrderStatusFilter] = useState<string>('all');
 
@@ -951,6 +977,48 @@ const Admin = () => {
       totalRecharges,
       completedOrders
     });
+  };
+
+  // Fetch custom date range stats
+  const fetchCustomStats = async () => {
+    setLoadingCustomStats(true);
+    try {
+      const startDate = new Date(statsStartDate);
+      startDate.setHours(0, 0, 0, 0);
+      const endDate = new Date(statsEndDate);
+      endDate.setHours(23, 59, 59, 999);
+
+      const [ordersResult, rechargesResult] = await Promise.all([
+        supabase
+          .from('orders')
+          .select('*')
+          .gte('created_at', startDate.toISOString())
+          .lte('created_at', endDate.toISOString()),
+        supabase
+          .from('recharge_requests')
+          .select('id, status')
+          .gte('created_at', startDate.toISOString())
+          .lte('created_at', endDate.toISOString())
+      ]);
+
+      const rangeOrders = ordersResult.data || [];
+      const rangeRecharges = rechargesResult.data || [];
+
+      const totalEarnings = rangeOrders
+        .filter(o => o.status === 'completed')
+        .reduce((sum, o) => sum + Number(o.amount || o.total_price), 0);
+
+      setCustomStats({
+        totalEarnings,
+        totalOrders: rangeOrders.length,
+        totalRecharges: rangeRecharges.filter(r => r.status === 'approved').length,
+        completedOrders: rangeOrders.filter(o => o.status === 'completed').length
+      });
+    } catch (error) {
+      console.error('Error fetching custom stats:', error);
+    } finally {
+      setLoadingCustomStats(false);
+    }
   };
 
   useEffect(() => {
@@ -1146,8 +1214,18 @@ const Admin = () => {
       const { data } = await supabase.from('tokens').select('*').order('created_at', { ascending: false });
       setTokens(data || []);
     } else if (activeTab === 'orders') {
-      const { data } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
-      setOrders(data || []);
+      // Fetch orders with token values
+      const { data: ordersData } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
+      const { data: tokensData } = await supabase.from('tokens').select('id, token');
+      
+      // Map token values to orders
+      const tokenMap = new Map((tokensData || []).map(t => [t.id, t.token]));
+      const ordersWithTokens = (ordersData || []).map(order => ({
+        ...order,
+        token_value: order.token_id ? tokenMap.get(order.token_id) || null : null
+      }));
+      
+      setOrders(ordersWithTokens);
       // Also fetch products and options for display
       const { data: productsData } = await supabase.from('products').select('*');
       const { data: optionsData } = await supabase.from('product_options').select('*');
@@ -1894,6 +1972,56 @@ const Admin = () => {
             <span className="text-xl font-bold text-warning">{todayStats.totalRecharges}</span>
           </div>
         </div>
+
+        {/* Custom Date Range Stats */}
+        <div className="mb-6 bg-card rounded-xl border border-border p-4">
+          <div className="flex flex-wrap items-center gap-3 mb-4">
+            <h3 className="font-bold text-sm">إحصائيات بتاريخ محدد:</h3>
+            <input
+              type="date"
+              value={statsStartDate}
+              onChange={(e) => setStatsStartDate(e.target.value)}
+              className="px-3 py-1.5 rounded-lg border border-border bg-background text-sm"
+            />
+            <span className="text-muted-foreground">إلى</span>
+            <input
+              type="date"
+              value={statsEndDate}
+              onChange={(e) => setStatsEndDate(e.target.value)}
+              className="px-3 py-1.5 rounded-lg border border-border bg-background text-sm"
+            />
+            <button
+              onClick={fetchCustomStats}
+              disabled={loadingCustomStats}
+              className="btn-primary px-4 py-1.5 text-sm flex items-center gap-2"
+            >
+              {loadingCustomStats ? <Loader2 className="w-4 h-4 animate-spin" /> : <TrendingUp className="w-4 h-4" />}
+              عرض
+            </button>
+          </div>
+          
+          {customStats.totalOrders > 0 && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="bg-success/10 border border-success/20 rounded-lg px-3 py-2">
+                <span className="text-xs text-success">الأرباح</span>
+                <p className="font-bold text-success">${customStats.totalEarnings}</p>
+              </div>
+              <div className="bg-primary/10 border border-primary/20 rounded-lg px-3 py-2">
+                <span className="text-xs text-primary">الطلبات</span>
+                <p className="font-bold text-primary">{customStats.totalOrders}</p>
+              </div>
+              <div className="bg-info/10 border border-info/20 rounded-lg px-3 py-2">
+                <span className="text-xs text-info">مكتملة</span>
+                <p className="font-bold text-info">{customStats.completedOrders}</p>
+              </div>
+              <div className="bg-warning/10 border border-warning/20 rounded-lg px-3 py-2">
+                <span className="text-xs text-warning">شحنات مقبولة</span>
+                <p className="font-bold text-warning">{customStats.totalRecharges}</p>
+              </div>
+            </div>
+          )}
+        </div>
+
 <VisitCounter />
         {/* Orders Tab */}
         {activeTab === 'orders' && (
