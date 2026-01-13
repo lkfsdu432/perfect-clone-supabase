@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 const PRESET_AMOUNTS = [5, 10, 15, 20];
+const MIN_CUSTOM_AMOUNT = 5;
 const TOKEN_STORAGE_KEY = 'user_token';
 
 interface PaymentMethod {
@@ -233,9 +234,9 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
     <div className="space-y-5">
       <p className="text-center text-sm text-muted-foreground">الدولار = {dollarRate} جنيه</p>
 
-      {/* اختيار طريقة الدفع */}
+      {/* اختيار طريقة الدفع - الظاهرة فقط */}
       <div className="grid grid-cols-3 gap-2">
-        {paymentMethods.map((method) => {
+        {paymentMethods.filter(m => (m as any).is_visible !== false).map((method) => {
           const Icon = typeIcons[method.type || ''] || Wallet;
           const isActive = method.is_active;
           return (
@@ -349,6 +350,9 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
               </div>
             )}
           </div>
+          {isCustomMode && customAmount && parseFloat(customAmount) > 0 && parseFloat(customAmount) < MIN_CUSTOM_AMOUNT && (
+            <p className="text-xs text-red-500">الحد الأدنى للإيداع ${MIN_CUSTOM_AMOUNT}</p>
+          )}
           {isCustomMode && customAmount && parseFloat(customAmount) <= 0 && (
             <p className="text-xs text-red-500">المبلغ لازم يكون أكبر من صفر</p>
           )}
@@ -385,7 +389,7 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
         </label>
       </div>
 
-      <Button onClick={handleSubmit} disabled={!selectedAmount || !proofImage || !selectedMethod || isSubmitting} className="w-full py-6 text-lg">
+      <Button onClick={handleSubmit} disabled={!selectedAmount || selectedAmount < MIN_CUSTOM_AMOUNT || !proofImage || !selectedMethod || isSubmitting} className="w-full py-6 text-lg">
         {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "إرسال"}
       </Button>
     </div>

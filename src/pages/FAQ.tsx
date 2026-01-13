@@ -1,5 +1,5 @@
 import Header from '@/components/Header';
-import { HelpCircle, Mail } from 'lucide-react';
+import { HelpCircle, Mail, PlayCircle } from 'lucide-react';
 import {
   Accordion,
   AccordionContent,
@@ -86,6 +86,32 @@ const FAQ = () => {
           <div className="flex items-center gap-2 mb-4">
             <HelpCircle className="w-5 h-5 text-primary" />
             <h1 className="text-xl font-bold text-primary">الأسئلة الشائعة</h1>
+          </div>
+
+          {/* Video Tutorial */}
+          <div className="mb-6 p-4 bg-gradient-to-br from-primary/10 to-primary/5 rounded-xl border border-primary/20">
+            <div className="flex items-center gap-2 mb-3">
+              <PlayCircle className="w-5 h-5 text-primary" />
+              <h2 className="font-bold text-primary">شرح طريقة شراء التوكن</h2>
+            </div>
+            <div className="aspect-video rounded-lg overflow-hidden bg-black/10">
+              <iframe
+                src="https://www.youtube.com/embed/dQw4w9WgXcQ"
+                title="شرح طريقة شراء التوكن"
+                className="w-full h-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              />
+            </div>
+            <a
+              href="https://bit.ly/4sBFyHj"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 flex items-center justify-center gap-2 text-sm text-primary hover:underline"
+            >
+              <PlayCircle className="w-4 h-4" />
+              شاهد الفيديو على يوتيوب
+            </a>
           </div>
 
           {/* FAQ Accordion */}
