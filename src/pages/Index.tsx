@@ -1562,7 +1562,6 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
                   {/* عرض تعليمات المنتج الخاصة أو التعليمات العامة */}
                   {selectedOption.required_text_info && (
                     <div className="p-3 mb-3 bg-primary/5 border border-primary/20 rounded-lg">
-                      <p className="text-sm text-primary font-medium mb-1">اكتب المطلوب في وصف المنتج</p>
                       <p className="text-sm text-muted-foreground">{selectedOption.required_text_info}</p>
                     </div>
                   )}
