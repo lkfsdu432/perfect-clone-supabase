@@ -52,6 +52,7 @@ interface ProductOption {
   is_active: boolean;
   purchase_limit: number | null;
   max_quantity_per_order: number | null;
+  required_text_info: string | null;
 }
 
 interface Token {
@@ -847,7 +848,7 @@ const Admin = () => {
 
   // Form states
   const [productForm, setProductForm] = useState({ name: '', price: 0, duration: '', available: 0, instant_delivery: false });
-  const [optionForm, setOptionForm] = useState({ name: '', type: 'email_password', description: '', estimated_time: '', price: 0, duration: '', delivery_type: 'manual', is_active: true, purchase_limit: 0, max_quantity_per_order: 0 });
+  const [optionForm, setOptionForm] = useState({ name: '', type: 'email_password', description: '', estimated_time: '', price: 0, duration: '', delivery_type: 'manual', is_active: true, purchase_limit: 0, max_quantity_per_order: 0, required_text_info: '' });
   const [tokenForm, setTokenForm] = useState({ token: '', balance: 0 });
 
   // New options to add with product
@@ -1387,11 +1388,12 @@ const Admin = () => {
         delivery_type: isAuto ? 'auto' : option.type === 'chat' ? 'chat' : 'manual',
         is_active: option.is_active !== false,
         purchase_limit: option.purchase_limit || 0,
-        max_quantity_per_order: option.max_quantity_per_order || 0
+        max_quantity_per_order: option.max_quantity_per_order || 0,
+        required_text_info: option.required_text_info || ''
       });
     } else {
       setEditingOption(null);
-      setOptionForm({ name: '', type: 'email_password', description: '', estimated_time: '', price: 0, duration: '', delivery_type: 'manual', is_active: true, purchase_limit: 0, max_quantity_per_order: 0 });
+      setOptionForm({ name: '', type: 'email_password', description: '', estimated_time: '', price: 0, duration: '', delivery_type: 'manual', is_active: true, purchase_limit: 0, max_quantity_per_order: 0, required_text_info: '' });
     }
     setShowOptionModal(true);
   };
@@ -1416,7 +1418,8 @@ const Admin = () => {
           duration: optionForm.duration || null,
           is_active: optionForm.is_active,
           purchase_limit: optionForm.purchase_limit > 0 ? optionForm.purchase_limit : null,
-          max_quantity_per_order: optionForm.max_quantity_per_order > 0 ? optionForm.max_quantity_per_order : null
+          max_quantity_per_order: optionForm.max_quantity_per_order > 0 ? optionForm.max_quantity_per_order : null,
+          required_text_info: optionForm.required_text_info || null
         })
         .eq('id', editingOption.id);
 
@@ -1436,7 +1439,8 @@ const Admin = () => {
         duration: optionForm.duration || null,
         is_active: optionForm.is_active,
         purchase_limit: optionForm.purchase_limit > 0 ? optionForm.purchase_limit : null,
-        max_quantity_per_order: optionForm.max_quantity_per_order > 0 ? optionForm.max_quantity_per_order : null
+        max_quantity_per_order: optionForm.max_quantity_per_order > 0 ? optionForm.max_quantity_per_order : null,
+        required_text_info: optionForm.required_text_info || null
       });
 
       if (error) {
@@ -2747,6 +2751,25 @@ const Admin = () => {
                   className="input-field w-full"
                 />
               </div>
+
+              {/* Required Text Info - تعليمات النص المطلوب للعميل */}
+              {optionForm.delivery_type === 'manual' && optionForm.type === 'text' && (
+                <div className="p-3 bg-info/5 rounded-lg border border-info/20">
+                  <label className="text-sm font-medium text-info mb-2 block flex items-center gap-2">
+                    <MessageCircle className="w-4 h-4" />
+                    اكتب المطلوب في وصف المنتج
+                  </label>
+                  <textarea
+                    placeholder="اكتب التعليمات اللي هتظهر للعميل في حقل النص المطلوب..."
+                    value={optionForm.required_text_info}
+                    onChange={(e) => setOptionForm({ ...optionForm, required_text_info: e.target.value })}
+                    className="input-field w-full h-20"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    هذا النص سيظهر للعميل فوق حقل "النص المطلوب" لتوضيح ما يجب عليه كتابته
+                  </p>
+                </div>
+              )}
             </div>
             <div className="p-6 border-t border-border flex gap-3">
               <button onClick={handleSaveOption} className="btn-primary flex-1 py-3 flex items-center justify-center gap-2">
