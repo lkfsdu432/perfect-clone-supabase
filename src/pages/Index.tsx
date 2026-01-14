@@ -125,7 +125,6 @@ const Index = () => {
   
   const { toast } = useToast();
   const { fingerprint, getFingerprint } = useDeviceFingerprint();
-const [requiredTextInstructions, setRequiredTextInstructions] = useState('');
   const product = products.find(p => p.id === selectedProductId);
   const options = productOptions.filter(o => o.product_id === selectedProductId);
   const selectedOption = productOptions.find(o => o.id === selectedOptionId);
@@ -186,10 +185,6 @@ const [requiredTextInstructions, setRequiredTextInstructions] = useState('');
 
     checkActiveOrder();
     fetchProducts();
-    // جلب تعليمات النص المطلوب
-supabase.from('settings').select('value').eq('key', 'required_text_instructions').maybeSingle().then(({ data }) => {
-  if (data) setRequiredTextInstructions(data.value || '');
-});
   }, []);
 
   // Subscribe to active order updates
@@ -1565,10 +1560,10 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
                 <div>
                   <label className="block text-sm font-medium mb-2">النص المطلوب</label>
                   {/* عرض تعليمات المنتج الخاصة أو التعليمات العامة */}
-                  {(selectedOption.required_text_info || requiredTextInstructions) && (
+                  {selectedOption.required_text_info && (
                     <div className="p-3 mb-3 bg-primary/5 border border-primary/20 rounded-lg">
                       <p className="text-sm text-primary font-medium mb-1">اكتب المطلوب في وصف المنتج</p>
-                      <p className="text-sm text-muted-foreground">{selectedOption.required_text_info || requiredTextInstructions}</p>
+                      <p className="text-sm text-muted-foreground">{selectedOption.required_text_info}</p>
                     </div>
                   )}
                   <textarea
