@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { RotateCcw, HelpCircle, Coins, Menu, X } from 'lucide-react';
+import { RotateCcw, HelpCircle, Coins, PlayCircle, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import {
   Dialog,
@@ -14,8 +14,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 const Header = () => {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showRechargeDialog, setShowRechargeDialog] = useState(false);
+  const [showVideoDialog, setShowVideoDialog] = useState(false);
   const [rechargeToken, setRechargeToken] = useState('');
   const [tokenData, setTokenData] = useState<{ id: string } | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
@@ -69,8 +69,8 @@ const Header = () => {
   return (
     <>
       <header className="bg-card border-b border-border">
-        <div className="container mx-auto px-4 py-3 md:py-4">
-          <div className="flex items-center justify-between">
+        <div className="container mx-auto px-3 py-3 md:py-4">
+          <div className="flex items-center justify-between gap-2">
             {/* Logo */}
             <Link to="/" className="flex-shrink-0">
               <h1 className="text-xl md:text-3xl font-bold">
@@ -82,68 +82,48 @@ const Header = () => {
               </p>
             </Link>
 
-            {/* Mobile Menu Button */}
-            <button
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="md:hidden p-2 rounded-lg hover:bg-muted transition-colors"
-            >
-              {isMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-            </button>
-
-            {/* Desktop Navigation */}
-            <div className="hidden md:flex items-center gap-2 flex-wrap justify-end">
-              <Link to="/refund" className="nav-btn bg-secondary text-secondary-foreground hover:bg-muted flex items-center gap-2">
-                <RotateCcw className="w-4 h-4" />
-                طلب استرداد
+            {/* Navigation - Always visible */}
+            <div className="flex items-center gap-1 sm:gap-2 flex-wrap justify-end">
+              <Link 
+                to="/refund" 
+                className="px-2 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm rounded-lg bg-secondary text-secondary-foreground hover:bg-muted flex items-center gap-1 sm:gap-2 transition-colors"
+              >
+                <RotateCcw className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span className="hidden xs:inline">طلب</span> استرداد
               </Link>
-              <Link to="/faq" className="nav-btn bg-secondary text-secondary-foreground hover:bg-muted flex items-center gap-2">
-                <HelpCircle className="w-4 h-4" />
+              <Link 
+                to="/faq" 
+                className="px-2 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm rounded-lg bg-secondary text-secondary-foreground hover:bg-muted flex items-center gap-1 sm:gap-2 transition-colors"
+              >
+                <HelpCircle className="w-3 h-3 sm:w-4 sm:h-4" />
                 الأسئلة
               </Link>
               <button
                 onClick={() => setShowRechargeDialog(true)}
-                className="nav-btn bg-primary text-primary-foreground hover:opacity-90 flex items-center gap-2"
+                className="px-2 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm rounded-lg bg-gradient-to-r from-primary to-primary/80 text-primary-foreground hover:opacity-90 flex items-center gap-1 sm:gap-2 transition-all shadow-lg shadow-primary/25 font-semibold"
               >
-                <Coins className="w-4 h-4" />
+                <Sparkles className="w-3 h-3 sm:w-4 sm:h-4" />
                 شراء توكن
               </button>
             </div>
           </div>
-
-          {/* Mobile Navigation */}
-          {isMenuOpen && (
-            <div className="md:hidden mt-3 pt-3 border-t border-border space-y-2">
-              <Link
-                to="/refund"
-                onClick={() => setIsMenuOpen(false)}
-                className="w-full nav-btn bg-secondary text-secondary-foreground hover:bg-muted flex items-center gap-2 justify-center py-3"
-              >
-                <RotateCcw className="w-4 h-4" />
-                طلب استرداد
-              </Link>
-              <Link
-                to="/faq"
-                onClick={() => setIsMenuOpen(false)}
-                className="w-full nav-btn bg-secondary text-secondary-foreground hover:bg-muted flex items-center gap-2 justify-center py-3"
-              >
-                <HelpCircle className="w-4 h-4" />
-                الأسئلة
-              </Link>
-              <button
-                onClick={() => { setIsMenuOpen(false); setShowRechargeDialog(true); }}
-                className="w-full nav-btn bg-primary text-primary-foreground hover:opacity-90 flex items-center gap-2 justify-center py-3"
-              >
-                <Coins className="w-4 h-4" />
-                شراء توكن
-              </button>
-            </div>
-          )}
+          
+          {/* زر كيفية شراء التوكن - ظاهر دائماً */}
+          <div className="mt-3 flex justify-center">
+            <button
+              onClick={() => setShowVideoDialog(true)}
+              className="px-4 py-2 text-sm rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600 flex items-center gap-2 transition-all shadow-lg shadow-amber-500/30 animate-pulse hover:animate-none font-semibold"
+            >
+              <PlayCircle className="w-4 h-4" />
+              📺 كيفية شراء التوكن
+            </button>
+          </div>
         </div>
       </header>
 
       {/* Recharge Dialog */}
       <Dialog open={showRechargeDialog} onOpenChange={handleCloseDialog}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className="sm:max-w-sm max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-center text-lg">شحن الرصيد</DialogTitle>
           </DialogHeader>
@@ -184,6 +164,38 @@ const Header = () => {
               onSuccess={handleCloseDialog}
             />
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Video Tutorial Dialog */}
+      <Dialog open={showVideoDialog} onOpenChange={setShowVideoDialog}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-center text-lg flex items-center justify-center gap-2">
+              <PlayCircle className="w-5 h-5 text-primary" />
+              كيفية شراء التوكن
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="aspect-video rounded-lg overflow-hidden bg-black/10">
+              <iframe
+                src="https://www.youtube.com/embed/bQw2G46h31Y"
+                title="شرح طريقة شراء التوكن"
+                className="w-full h-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              />
+            </div>
+            <a
+              href="https://youtu.be/bQw2G46h31Y"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 text-sm text-primary hover:underline"
+            >
+              <PlayCircle className="w-4 h-4" />
+              شاهد الفيديو على يوتيوب
+            </a>
+          </div>
         </DialogContent>
       </Dialog>
     </>

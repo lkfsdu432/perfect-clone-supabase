@@ -9,6 +9,11 @@ import {
 
 const faqs = [
   {
+    question: 'كيفية شراء التوكن؟',
+    answer: 'شاهد الفيديو التوضيحي أعلاه أو اتبع الخطوات التالية: اضغط على "شراء توكن"، اختر المبلغ وطريقة الدفع، قم بالتحويل ثم ارفع صورة الإيصال. سيتم إنشاء توكن جديد لك أو شحن التوكن الحالي.',
+    summary: 'اضغط شراء توكن → اختر المبلغ → حوّل المبلغ → ارفع الإيصال → استلم التوكن.'
+  },
+  {
     question: 'ما هو التوكن وكيف أحصل عليه؟',
     answer: 'التوكن هو رمز فريد خاص بك يُستخدم كهوية للشراء وشحن الرصيد ومتابعة طلباتك. يمكنك الحصول عليه من خلال التواصل مع الدعم عبر البريد الإلكتروني أو من خلال وكلائنا المعتمدين.',
     summary: 'التوكن = رمز خاص بك للشراء والشحن. احصل عليه من الدعم أو الوكلاء.'
@@ -96,7 +101,7 @@ const FAQ = () => {
             </div>
             <div className="aspect-video rounded-lg overflow-hidden bg-black/10">
               <iframe
-                src="https://www.youtube.com/embed/dQw4w9WgXcQ"
+                src="https://www.youtube.com/embed/bQw2G46h31Y"
                 title="شرح طريقة شراء التوكن"
                 className="w-full h-full"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -104,7 +109,7 @@ const FAQ = () => {
               />
             </div>
             <a
-              href="https://bit.ly/4sBFyHj"
+              href="https://youtu.be/bQw2G46h31Y"
               target="_blank"
               rel="noopener noreferrer"
               className="mt-3 flex items-center justify-center gap-2 text-sm text-primary hover:underline"

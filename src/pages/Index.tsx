@@ -340,9 +340,9 @@ supabase.from('settings').select('value').eq('key', 'required_text_instructions'
 
     setIsLoading(true);
     const data = await verifyToken(token);
-    setIsLoading(false);
 
     if (!data) {
+      setIsLoading(false);
       toast({
         title: 'خطأ',
         description: 'التوكن غير صالح',
@@ -352,6 +352,7 @@ supabase.from('settings').select('value').eq('key', 'required_text_instructions'
     }
 
     if (data.is_blocked) {
+      setIsLoading(false);
       toast({
         title: 'خطأ',
         description: 'هذا التوكن محظور ولا يمكن استخدامه للشراء',
@@ -360,6 +361,25 @@ supabase.from('settings').select('value').eq('key', 'required_text_instructions'
       return;
     }
 
+    // التحقق من وجود طلب نشط (pending أو in_progress) لهذا التوكن
+    const { data: pendingOrders, error: pendingError } = await supabase
+      .from('orders')
+      .select('id, order_number, status')
+      .eq('token_id', data.id)
+      .in('status', ['pending', 'in_progress'])
+      .limit(1);
+
+    if (!pendingError && pendingOrders && pendingOrders.length > 0) {
+      setIsLoading(false);
+      toast({
+        title: 'لديك طلب قيد التنفيذ',
+        description: `لا يمكنك إنشاء طلب جديد حتى يكتمل الطلب الحالي #${pendingOrders[0].order_number}`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsLoading(false);
     setTokenData(data);
     setTokenBalance(Number(data.balance));
     setStep('details');

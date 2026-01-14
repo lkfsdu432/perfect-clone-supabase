@@ -4,8 +4,8 @@ import { Upload, Loader2, CheckCircle, Copy, Wallet, CreditCard, Bitcoin } from 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-const PRESET_AMOUNTS = [5, 10, 15, 20];
-const MIN_CUSTOM_AMOUNT = 5;
+const PRESET_AMOUNTS = [1, 5, 10, 15, 20];
+const MIN_CUSTOM_AMOUNT = 1;
 const TOKEN_STORAGE_KEY = 'user_token';
 
 interface PaymentMethod {

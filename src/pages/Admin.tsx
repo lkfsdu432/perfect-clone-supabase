@@ -1815,29 +1815,28 @@ const Admin = () => {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="bg-card border-b border-border sticky top-0 z-20">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
-                <Settings className="w-5 h-5 text-primary-foreground" />
+        <div className="container mx-auto px-2 sm:px-4 py-3 sm:py-4">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-primary flex items-center justify-center flex-shrink-0">
+                <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-primary-foreground" />
               </div>
               <div>
-                <h1 className="text-lg font-bold">لوحة التحكم</h1>
-                <p className="text-xs text-muted-foreground">إدارة المنتجات والطلبات</p>
+                <h1 className="text-base sm:text-lg font-bold">لوحة التحكم</h1>
+                <p className="text-xs text-muted-foreground hidden sm:block">إدارة المنتجات والطلبات</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 sm:gap-2">
               <button
                 onClick={() => setNotificationsEnabled(!notificationsEnabled)}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
+                className={`p-1.5 sm:px-3 sm:py-2 rounded-lg transition-colors ${
                   notificationsEnabled
                     ? 'bg-success/10 text-success hover:bg-success/20'
                     : 'bg-muted text-muted-foreground hover:bg-muted/80'
                 }`}
                 title={notificationsEnabled ? 'إيقاف تحديث الإشعارات' : 'تفعيل تحديث الإشعارات'}
               >
-                {notificationsEnabled ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
-                <span className="hidden sm:inline">{notificationsEnabled ? 'الإشعارات' : 'موقوفة'}</span>
+                {notificationsEnabled ? <Bell className="w-4 h-4 sm:w-5 sm:h-5" /> : <BellOff className="w-4 h-4 sm:w-5 sm:h-5" />}
               </button>
 
               <button
@@ -1853,15 +1852,14 @@ const Admin = () => {
                     toast({ title: "تم إيقاف الصوت" });
                   }
                 }}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
+                className={`p-1.5 sm:px-3 sm:py-2 rounded-lg transition-colors ${
                   soundEnabled
                     ? 'bg-primary/10 text-primary hover:bg-primary/20'
                     : 'bg-muted text-muted-foreground hover:bg-muted/80'
                 }`}
                 title={soundEnabled ? 'إيقاف صوت الإشعارات' : 'تفعيل صوت الإشعارات'}
               >
-                {soundEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
-                <span className="hidden sm:inline">{soundEnabled ? 'الصوت مفعل' : 'الصوت مغلق'}</span>
+                {soundEnabled ? <Volume2 className="w-4 h-4 sm:w-5 sm:h-5" /> : <VolumeX className="w-4 h-4 sm:w-5 sm:h-5" />}
               </button>
 
               <button
@@ -1874,43 +1872,41 @@ const Admin = () => {
                       : "تأكد من أن المتصفح يسمح بتشغيل الصوت وأن الجهاز ليس على كتم.",
                   });
                 }}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted text-muted-foreground hover:bg-muted/80 transition-colors"
+                className="p-1.5 sm:px-3 sm:py-2 rounded-lg bg-muted text-muted-foreground hover:bg-muted/80 transition-colors hidden sm:flex items-center gap-2"
                 title="اختبار الصوت"
               >
-                <Zap className="w-5 h-5" />
-                <span className="hidden sm:inline">اختبار</span>
+                <Zap className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
               <button
                 onClick={async () => {
                   await supabase.auth.signOut();
                   navigate('/admin/login');
                 }}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg text-destructive hover:bg-destructive/10 transition-colors"
+                className="p-1.5 sm:px-3 sm:py-2 rounded-lg text-destructive hover:bg-destructive/10 transition-colors"
               >
-                <LogOut className="w-5 h-5" />
-                <span className="hidden sm:inline">خروج</span>
+                <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
             </div>
           </div>
         </div>
       </header>
 
-      <div className="container mx-auto px-4 py-6">
-        {/* Professional Tabs */}
-        <div className="bg-card/80 backdrop-blur-sm border border-border rounded-2xl p-1.5 mb-6 overflow-x-auto">
-          <div className="flex gap-1 min-w-max">
+      <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-6">
+        {/* Professional Tabs - Scrollable on mobile */}
+        <div className="bg-card/80 backdrop-blur-sm border border-border rounded-xl sm:rounded-2xl p-1 sm:p-1.5 mb-4 sm:mb-6 overflow-x-auto scrollbar-hide">
+          <div className="flex gap-0.5 sm:gap-1 min-w-max">
             {[
               { id: 'orders', label: 'الطلبات', icon: ShoppingBag, count: orders.length, permission: 'can_manage_orders' },
-              { id: 'recharges', label: 'طلبات الشحن', icon: CreditCard, count: null, permission: 'can_manage_tokens' },
+              { id: 'recharges', label: 'الشحن', icon: CreditCard, count: null, permission: 'can_manage_tokens' },
               { id: 'products', label: 'الأقسام', icon: Package, count: products.length, permission: 'can_manage_products' },
               { id: 'stock', label: 'المخزون', icon: Database, count: null, permission: 'can_manage_stock' },
               { id: 'tokens', label: 'التوكنات', icon: Key, count: tokens.length, permission: 'can_manage_tokens' },
-              { id: 'token_log', label: 'سجل التوكنات', icon: Database, count: null, permission: 'can_manage_tokens' },
-              { id: 'refunds', label: 'الاستردادات', icon: RotateCcw, count: refundRequests.filter(r => r.status === 'pending').length, permission: 'can_manage_refunds' },
-              { id: 'payment_methods', label: 'طرق الدفع', icon: Wallet, count: null, permission: 'can_manage_tokens' },
-              { id: 'coupons', label: 'الكوبونات', icon: Ticket, count: null, permission: 'can_manage_coupons' },
-              { id: 'news', label: 'الأخبار', icon: Newspaper, count: null, permission: 'can_manage_products' },
-              { id: 'admin_users', label: 'مدراء النظام', icon: Users, count: null, permission: 'can_manage_users' },
+              { id: 'token_log', label: 'السجل', icon: Database, count: null, permission: 'can_manage_tokens' },
+              { id: 'refunds', label: 'الاسترداد', icon: RotateCcw, count: refundRequests.filter(r => r.status === 'pending').length, permission: 'can_manage_refunds' },
+              { id: 'payment_methods', label: 'الدفع', icon: Wallet, count: null, permission: 'can_manage_tokens' },
+              { id: 'coupons', label: 'كوبونات', icon: Ticket, count: null, permission: 'can_manage_coupons' },
+              { id: 'news', label: 'أخبار', icon: Newspaper, count: null, permission: 'can_manage_products' },
+              { id: 'admin_users', label: 'مدراء', icon: Users, count: null, permission: 'can_manage_users' },
             ].filter(tab => isAdmin || (userPermissions && userPermissions[tab.permission as keyof UserPermissions])).map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -1918,16 +1914,16 @@ const Admin = () => {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as 'products' | 'tokens' | 'orders' | 'refunds' | 'users' | 'coupons' | 'recharges' | 'payment_methods' | 'admin_users' | 'news' | 'token_log' | 'stock')}
-                  className={`relative flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap ${
+                  className={`relative flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
                     isActive
                       ? 'bg-primary text-primary-foreground shadow-md'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
                   }`}
                 >
-                  <Icon className="w-4 h-4" />
-                  <span>{tab.label}</span>
+                  <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  <span className="hidden xs:inline">{tab.label}</span>
                   {tab.count !== null && tab.count > 0 && (
-                    <span className={`min-w-5 h-5 flex items-center justify-center px-1.5 rounded-full text-xs font-bold ${
+                    <span className={`min-w-4 h-4 sm:min-w-5 sm:h-5 flex items-center justify-center px-1 sm:px-1.5 rounded-full text-[10px] sm:text-xs font-bold ${
                       isActive 
                         ? 'bg-primary-foreground/20 text-primary-foreground' 
                         : 'bg-primary/10 text-primary'
