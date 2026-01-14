@@ -38,6 +38,7 @@ interface ProductOption {
   is_active: boolean;
   purchase_limit: number | null;
   max_quantity_per_order: number | null;
+  required_text_info: string | null;
 }
 
 interface Order {
@@ -1563,9 +1564,13 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
               {selectedOption.type === 'text' && (
                 <div>
                   <label className="block text-sm font-medium mb-2">النص المطلوب</label>
-                  {requiredTextInstructions && (
-  <p className="text-sm text-muted-foreground mb-2">{requiredTextInstructions}</p>
-)}
+                  {/* عرض تعليمات المنتج الخاصة أو التعليمات العامة */}
+                  {(selectedOption.required_text_info || requiredTextInstructions) && (
+                    <div className="p-3 mb-3 bg-primary/5 border border-primary/20 rounded-lg">
+                      <p className="text-sm text-primary font-medium mb-1">اكتب المطلوب في وصف المنتج</p>
+                      <p className="text-sm text-muted-foreground">{selectedOption.required_text_info || requiredTextInstructions}</p>
+                    </div>
+                  )}
                   <textarea
                     value={textInput}
                     onChange={(e) => setTextInput(e.target.value)}

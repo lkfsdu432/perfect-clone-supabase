@@ -16,6 +16,7 @@ interface PaymentMethod {
   account_name: string | null;
   instructions: string | null;
   is_active: boolean;
+  is_visible: boolean | null;
 }
 
 const typeIcons: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -236,7 +237,7 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
 
       {/* اختيار طريقة الدفع - الظاهرة فقط */}
       <div className="grid grid-cols-3 gap-2">
-        {paymentMethods.filter(m => (m as any).is_visible !== false).map((method) => {
+        {paymentMethods.filter(m => m.is_visible !== false).map((method) => {
           const Icon = typeIcons[method.type || ''] || Wallet;
           const isActive = method.is_active;
           return (
@@ -246,17 +247,21 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
               disabled={!isActive}
               className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border transition-all ${
                 !isActive
-                  ? 'opacity-50 cursor-not-allowed border-border bg-muted'
+                  ? 'opacity-60 cursor-not-allowed border-dashed border-destructive/30 bg-destructive/5'
                   : selectedMethod?.id === method.id
                     ? 'border-primary bg-primary/10 text-primary'
                     : 'border-border hover:border-primary/50'
               }`}
             >
-              <Icon className="w-5 h-5" />
+              <Icon className={`w-5 h-5 ${!isActive ? 'text-muted-foreground' : ''}`} />
               <span className="text-xs font-medium text-center">
                 {method.name}
-                {!isActive && <span className="block text-[10px] text-muted-foreground">(غير متاح)</span>}
               </span>
+              {!isActive && (
+                <span className="text-[10px] text-destructive font-medium bg-destructive/10 px-2 py-0.5 rounded-full">
+                  غير متاح حالياً
+                </span>
+              )}
             </button>
           );
         })}
