@@ -322,23 +322,22 @@ const Index = () => {
 
   const verifyToken = async (tokenValue: string) => {
     try {
-      const { data, error } = await supabase.functions.invoke('verify-token', {
-        body: { token: tokenValue.trim() }
-      });
-
-      if (error || !data?.success) {
-        return null;
-      }
-
-      return data.token;
-    } catch {
-      // Fallback to direct query if Edge Function not available
-      const { data } = await supabase
+      // Direct query since RLS is now open
+      const { data, error } = await supabase
         .from('tokens')
         .select('id, balance, is_blocked')
-        .eq('token', tokenValue)
+        .eq('token', tokenValue.trim())
         .maybeSingle();
+      
+      if (error) {
+        console.error('Token verify error:', error);
+        return null;
+      }
+      
       return data;
+    } catch (err) {
+      console.error('Token verify exception:', err);
+      return null;
     }
   };
 
