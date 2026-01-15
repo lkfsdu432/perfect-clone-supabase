@@ -92,44 +92,32 @@ export const RechargeManagement = () => {
     setProcessing(true);
 
     try {
-      if (actionType === 'approve') {
-        // Update token balance
-        const currentBalance = selectedRequest.tokens?.balance || 0;
-        const newBalance = currentBalance + selectedRequest.amount;
+      const { data, error } = await supabase.functions.invoke('process-recharge', {
+        body: {
+          requestId: selectedRequest.id,
+          action: actionType,
+          adminNote: adminNote || null,
+        },
+      });
 
-        const { error: tokenError } = await supabase
-          .from('tokens')
-          .update({ balance: newBalance })
-          .eq('id', selectedRequest.token_id);
-
-        if (tokenError) throw tokenError;
+      if (error || !data?.success) {
+        console.error('process-recharge failed:', { error, data });
+        throw error || new Error(data?.error || 'PROCESS_RECHARGE_FAILED');
       }
-
-      // Update request status
-      const { error: requestError } = await supabase
-        .from('recharge_requests')
-        .update({
-          status: actionType === 'approve' ? 'approved' : 'rejected',
-          admin_note: adminNote || null,
-          processed_at: new Date().toISOString(),
-        })
-        .eq('id', selectedRequest.id);
-
-      if (requestError) throw requestError;
 
       toast.success(
         actionType === 'approve'
           ? `تم الموافقة وإضافة ${selectedRequest.amount} للرصيد`
-          : "تم رفض الطلب"
+          : 'تم رفض الطلب'
       );
 
       setShowActionModal(false);
       setSelectedRequest(null);
-      setAdminNote("");
+      setAdminNote('');
       fetchRequests();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error processing request:', error);
-      toast.error("حدث خطأ أثناء معالجة الطلب");
+      toast.error(error?.message ? `حدث خطأ: ${error.message}` : 'حدث خطأ أثناء معالجة الطلب');
     } finally {
       setProcessing(false);
     }
