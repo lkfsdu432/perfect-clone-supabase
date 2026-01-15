@@ -24,11 +24,11 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // First verify the token
+    // First verify the token - case-insensitive
     const { data: tokenData, error: tokenError } = await supabase
       .from('tokens')
       .select('id, balance, is_blocked')
-      .eq('token', tokenValue.trim())
+      .ilike('token', tokenValue.trim())
       .maybeSingle();
 
     if (tokenError || !tokenData) {
