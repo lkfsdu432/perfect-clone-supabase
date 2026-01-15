@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import Header from '@/components/Header';
 import NewsSection from '@/components/NewsSection';
 import { supabase } from '@/integrations/supabase/client';
-import { invokePublicFunction } from '@/lib/invokePublicFunction';
 import { ShoppingCart, Search, CheckCircle, AlertCircle, Loader2, Clock, XCircle, CheckCircle2, Copy, MessageCircle, Ticket, Ban, CreditCard, RotateCcw, Download } from 'lucide-react';
 import {
   Select,
@@ -562,21 +561,23 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
     const effectiveTotalPrice = effectiveBasePrice - effectiveDiscountAmount;
 
     try {
-      const { data, error: fnError } = await invokePublicFunction<any>('create-order', {
-        tokenValue: token.trim(),
-        productId: product.id,
-        productOptionId: selectedOption.id,
-        quantity: requestedQuantity,
-        email: selectedOption.type === 'email_password' ? email : null,
-        password: selectedOption.type === 'email_password' ? password : null,
-        verificationLink:
-          selectedOption.type === 'link'
-            ? verificationLink
-            : selectedOption.type === 'text'
-              ? textInput
-              : null,
-        couponCode: appliedCoupon?.code || null,
-        deviceFingerprint,
+      const { data, error: fnError } = await supabase.functions.invoke('create-order', {
+        body: {
+          tokenValue: token.trim(),
+          productId: product.id,
+          productOptionId: selectedOption.id,
+          quantity: requestedQuantity,
+          email: selectedOption.type === 'email_password' ? email : null,
+          password: selectedOption.type === 'email_password' ? password : null,
+          verificationLink:
+            selectedOption.type === 'link'
+              ? verificationLink
+              : selectedOption.type === 'text'
+                ? textInput
+                : null,
+          couponCode: appliedCoupon?.code || null,
+          deviceFingerprint,
+        },
       });
 
       if (fnError || !data?.success) {
