@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Header from '@/components/Header';
 import NewsSection from '@/components/NewsSection';
 import { supabase } from '@/integrations/supabase/client';
+import { invokePublicFunction } from '@/lib/invokePublicFunction';
 import { ShoppingCart, Search, CheckCircle, AlertCircle, Loader2, Clock, XCircle, CheckCircle2, Copy, MessageCircle, Ticket, Ban, CreditCard, RotateCcw, Download } from 'lucide-react';
 import {
   Select,
@@ -561,24 +562,47 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
     const effectiveTotalPrice = effectiveBasePrice - effectiveDiscountAmount;
 
     try {
-      const { data, error: fnError } = await supabase.functions.invoke('create-order', {
-        body: {
-          tokenValue: token.trim(),
-          productId: product.id,
-          productOptionId: selectedOption.id,
-          quantity: requestedQuantity,
-          email: selectedOption.type === 'email_password' ? email : null,
-          password: selectedOption.type === 'email_password' ? password : null,
-          verificationLink:
-            selectedOption.type === 'link'
-              ? verificationLink
-              : selectedOption.type === 'text'
-                ? textInput
-                : null,
-          couponCode: appliedCoupon?.code || null,
-          deviceFingerprint,
-        },
+      const { data, error: fnError } = await invokePublicFunction<any>('create-order', {
+        tokenValue: token.trim(),
+        productId: product.id,
+        productOptionId: selectedOption.id,
+        quantity: requestedQuantity,
+        email: selectedOption.type === 'email_password' ? email : null,
+        password: selectedOption.type === 'email_password' ? password : null,
+        verificationLink:
+          selectedOption.type === 'link'
+            ? verificationLink
+            : selectedOption.type === 'text'
+              ? textInput
+              : null,
+        couponCode: appliedCoupon?.code || null,
+        deviceFingerprint,
       });
+
+      if (fnError || !data?.success) {
+        const errorCode = data?.error || 'UNKNOWN';
+        let description = 'فشل في إرسال الطلب';
+
+        if (errorCode === 'INSUFFICIENT_BALANCE') description = 'الرصيد غير كافي';
+        if (errorCode === 'HAS_PENDING_ORDER') description = data?.message || 'لديك طلب قيد التنفيذ';
+        if (errorCode === 'PURCHASE_LIMIT_REACHED') description = 'لقد وصلت للحد الأقصى للشراء لهذا المنتج من هذا الجهاز';
+        if (errorCode === 'INSUFFICIENT_STOCK') description = `المخزون غير كافي. متوفر فقط ${data?.available ?? 0} قطعة`;
+        if (errorCode === 'BALANCE_DEDUCT_FAILED') description = 'حدث خطأ أثناء خصم الرصيد (راجع إعدادات قاعدة البيانات)';
+
+        // network/CORS errors will come from fnError
+        if (fnError && !data?.success) {
+          description = fnError.message || description;
+        }
+
+        toast({
+          title: 'خطأ',
+          description,
+          variant: 'destructive',
+        });
+
+        setIsLoading(false);
+        return;
+      }
 
       if (fnError || !data?.success) {
         const errorCode = data?.error || 'UNKNOWN';
