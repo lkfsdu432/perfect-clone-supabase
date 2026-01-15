@@ -93,44 +93,43 @@ export const RechargeManagement = () => {
 
     try {
       if (actionType === 'approve') {
-        // Use RPC function for approval
-        const { data, error } = await supabase.rpc(
-          'approve_recharge_request',
-          { p_request_id: selectedRequest.id }
-        );
+        // Update token balance
+        const currentBalance = selectedRequest.tokens?.balance || 0;
+        const newBalance = currentBalance + selectedRequest.amount;
 
-        if (error || !data?.ok) {
-          console.error('approve_recharge_request failed:', { error, data });
-          throw new Error(data?.error || error?.message || 'APPROVAL_FAILED');
-        }
+        const { error: tokenError } = await supabase
+          .from('tokens')
+          .update({ balance: newBalance })
+          .eq('id', selectedRequest.token_id);
 
-        // Update admin note if provided
-        if (adminNote) {
-          await supabase
-            .from('recharge_requests')
-            .update({ admin_note: adminNote })
-            .eq('id', selectedRequest.id);
-        }
-
-        toast.success(`تمت الموافقة وشحن الرصيد بنجاح ✅`);
-      } else {
-        // Reject request
-        const { error } = await supabase
-          .from('recharge_requests')
-          .update({ status: 'rejected', admin_note: adminNote || null })
-          .eq('id', selectedRequest.id);
-
-        if (error) throw error;
-        toast.success('تم رفض الطلب');
+        if (tokenError) throw tokenError;
       }
+
+      // Update request status
+      const { error: requestError } = await supabase
+        .from('recharge_requests')
+        .update({
+          status: actionType === 'approve' ? 'approved' : 'rejected',
+          admin_note: adminNote || null,
+          processed_at: new Date().toISOString(),
+        })
+        .eq('id', selectedRequest.id);
+
+      if (requestError) throw requestError;
+
+      toast.success(
+        actionType === 'approve'
+          ? `تم الموافقة وإضافة ${selectedRequest.amount} للرصيد`
+          : "تم رفض الطلب"
+      );
 
       setShowActionModal(false);
       setSelectedRequest(null);
-      setAdminNote('');
+      setAdminNote("");
       fetchRequests();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error processing request:', error);
-      toast.error(error?.message ? `حدث خطأ: ${error.message}` : 'حدث خطأ أثناء معالجة الطلب');
+      toast.error("حدث خطأ أثناء معالجة الطلب");
     } finally {
       setProcessing(false);
     }

@@ -125,6 +125,7 @@ const Index = () => {
   
   const { toast } = useToast();
   const { fingerprint, getFingerprint } = useDeviceFingerprint();
+const [requiredTextInstructions, setRequiredTextInstructions] = useState('');
   const product = products.find(p => p.id === selectedProductId);
   const options = productOptions.filter(o => o.product_id === selectedProductId);
   const selectedOption = productOptions.find(o => o.id === selectedOptionId);
@@ -185,6 +186,10 @@ const Index = () => {
 
     checkActiveOrder();
     fetchProducts();
+    // جلب تعليمات النص المطلوب
+supabase.from('settings').select('value').eq('key', 'required_text_instructions').maybeSingle().then(({ data }) => {
+  if (data) setRequiredTextInstructions(data.value || '');
+});
   }, []);
 
   // Subscribe to active order updates
@@ -299,16 +304,17 @@ const Index = () => {
     const { data: productsData } = await supabase.from('products').select('*').eq('is_active', true).order('name');
     const { data: optionsData } = await supabase.from('product_options').select('*').eq('is_active', true);
 
-    // Fetch stock counts using secure view
+    // Fetch stock counts for auto-delivery options
     const { data: stockData } = await supabase
-      .from('stock_availability')
-      .select('product_option_id, available_count');
+      .from('stock_items')
+      .select('product_option_id')
+      .eq('is_sold', false);
 
-    // Build counts from view data
+    // Count stock per option
     const counts: Record<string, number> = {};
     stockData?.forEach(item => {
       if (item.product_option_id) {
-        counts[item.product_option_id] = item.available_count || 0;
+        counts[item.product_option_id] = (counts[item.product_option_id] || 0) + 1;
       }
     });
 
@@ -321,64 +327,13 @@ const Index = () => {
   };
 
   const verifyToken = async (tokenValue: string) => {
-    const normalized = tokenValue.trim();
-    if (!normalized) return null;
+    const { data } = await supabase
+      .from('tokens')
+      .select('id, balance, is_blocked')
+      .eq('token', tokenValue)
+      .maybeSingle();
 
-    // 1) Prefer DB RPC (works even when tokens table SELECT is blocked)
-    try {
-      const { data, error } = await supabase.rpc('verify_token_public', {
-        token_value: normalized,
-      });
-
-      if (!error && data && (data as any).id) {
-        return data as any;
-      }
-
-      if (error) {
-        console.warn('verify_token_public rpc error:', error);
-      }
-    } catch (err) {
-      console.warn('verify_token_public rpc exception:', err);
-    }
-
-    // 2) Fallback to Edge Function (if deployed)
-    try {
-      const { data, error } = await supabase.functions.invoke('verify-token', {
-        body: { token: normalized },
-      });
-
-      if (!error && data?.success && data?.token?.id) {
-        return data.token;
-      }
-
-      console.warn('verify-token function failed:', {
-        error,
-        response: data,
-      });
-    } catch (err) {
-      console.warn('verify-token function exception:', err);
-    }
-
-    // 3) Last resort: direct DB SELECT (works only if RLS allows it)
-    try {
-      const { data, error } = await supabase
-        .from('tokens')
-        .select('id, balance, is_blocked')
-        .ilike('token', normalized)
-        .maybeSingle();
-
-      if (!error && data?.id) {
-        return data as any;
-      }
-
-      if (error) {
-        console.warn('tokens direct select error:', error);
-      }
-    } catch (err) {
-      console.warn('tokens direct select exception:', err);
-    }
-
-    return null;
+    return data;
   };
 
   const handleBuySubmit = async () => {
@@ -407,8 +362,23 @@ const Index = () => {
       return;
     }
 
-    // التحقق من وجود طلب نشط - يتم التحقق عبر Edge Function عند إنشاء الطلب
-    // لا حاجة للتحقق هنا - سيتم التحقق في handleOrderSubmit
+    // التحقق من وجود طلب نشط (pending أو in_progress) لهذا التوكن
+    const { data: pendingOrders, error: pendingError } = await supabase
+      .from('orders')
+      .select('id, order_number, status')
+      .eq('token_id', data.id)
+      .in('status', ['pending', 'in_progress'])
+      .limit(1);
+
+    if (!pendingError && pendingOrders && pendingOrders.length > 0) {
+      setIsLoading(false);
+      toast({
+        title: 'لديك طلب قيد التنفيذ',
+        description: `لا يمكنك إنشاء طلب جديد حتى يكتمل الطلب الحالي #${pendingOrders[0].order_number}`,
+        variant: 'destructive',
+      });
+      return;
+    }
 
     setIsLoading(false);
     setTokenData(data);
@@ -549,134 +519,137 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
   }
 }
 
-    // Create order via Edge Function (handles stock + coupons + balance deduction server-side)
-    const requestedQuantity = isAutoDelivery
-      ? quantity
-      : selectedOption.type === 'chat'
-        ? chatAccountsCount
-        : 1;
+    // For auto-delivery, first check if stock is available
+    if (isAutoDelivery) {
+      // Fetch required quantity of stock items
+      const { data: stockItems, error: stockError } = await supabase
+        .from('stock_items')
+        .select('id, content')
+        .eq('product_option_id', selectedOption.id)
+        .eq('is_sold', false)
+        .limit(quantity);
 
-    const effectiveBasePrice = Number(selectedOption.price) * requestedQuantity;
-    const effectiveDiscountAmount = calculateDiscount(effectiveBasePrice);
-    const effectiveTotalPrice = effectiveBasePrice - effectiveDiscountAmount;
-
-    try {
-      const { data, error: fnError } = await supabase.functions.invoke('create-order', {
-        body: {
-          tokenValue: token.trim(),
-          productId: product.id,
-          productOptionId: selectedOption.id,
-          quantity: requestedQuantity,
-          email: selectedOption.type === 'email_password' ? email : null,
-          password: selectedOption.type === 'email_password' ? password : null,
-          verificationLink:
-            selectedOption.type === 'link'
-              ? verificationLink
-              : selectedOption.type === 'text'
-                ? textInput
-                : null,
-          couponCode: appliedCoupon?.code || null,
-          deviceFingerprint,
-        },
-      });
-
-      if (fnError || !data?.success) {
-        const errorCode = data?.error || 'UNKNOWN';
-        let description = 'فشل في إرسال الطلب';
-
-        if (errorCode === 'INSUFFICIENT_BALANCE') description = 'الرصيد غير كافي';
-        if (errorCode === 'HAS_PENDING_ORDER') description = data?.message || 'لديك طلب قيد التنفيذ';
-        if (errorCode === 'PURCHASE_LIMIT_REACHED') description = 'لقد وصلت للحد الأقصى للشراء لهذا المنتج من هذا الجهاز';
-        if (errorCode === 'INSUFFICIENT_STOCK') description = `المخزون غير كافي. متوفر فقط ${data?.available ?? 0} قطعة`;
-        if (errorCode === 'BALANCE_DEDUCT_FAILED') description = 'حدث خطأ أثناء خصم الرصيد (راجع إعدادات قاعدة البيانات)';
-
-        // network/CORS errors will come from fnError
-        if (fnError && !data?.success) {
-          description = fnError.message || description;
-        }
-
+      if (stockError || !stockItems || stockItems.length < quantity) {
         toast({
           title: 'خطأ',
-          description,
+          description: `المخزون غير كافي. متوفر فقط ${stockItems?.length || 0} قطعة`,
           variant: 'destructive',
         });
-
         setIsLoading(false);
         return;
       }
 
-      if (fnError || !data?.success) {
-        const errorCode = data?.error || 'UNKNOWN';
-        let description = 'فشل في إرسال الطلب';
+      // Combine all stock content
+      const combinedContent = stockItems.map(item => item.content).join('\n');
 
-        if (errorCode === 'INSUFFICIENT_BALANCE') description = 'الرصيد غير كافي';
-        if (errorCode === 'HAS_PENDING_ORDER') description = data?.message || 'لديك طلب قيد التنفيذ';
-        if (errorCode === 'PURCHASE_LIMIT_REACHED') description = 'لقد وصلت للحد الأقصى للشراء لهذا المنتج من هذا الجهاز';
-        if (errorCode === 'INSUFFICIENT_STOCK') description = `المخزون غير كافي. متوفر فقط ${data?.available ?? 0} قطعة`;
-        if (errorCode === 'BALANCE_DEDUCT_FAILED') description = 'حدث خطأ أثناء خصم الرصيد (راجع إعدادات قاعدة البيانات)';
-
-        toast({
-          title: 'خطأ',
-          description,
-          variant: 'destructive',
-        });
-
-        setIsLoading(false);
-        return;
-      }
-
-      // Keep UI in sync with the backend balance (deducted server-side)
-      const newBalance = Number(data.newBalance);
-      setTokenBalance(newBalance);
-
-      if (data.isAutoDelivery) {
-        // Update local stock count (UI only)
-        setOptionStockCounts((prev) => ({
-          ...prev,
-          [selectedOption.id]: (prev[selectedOption.id] || 0) - requestedQuantity,
-        }));
-
-        setResponseMessage(data.order?.response_message || null);
-        setResult('success');
-        setIsLoading(false);
-        setStep('result');
-        setAppliedCoupon(null);
-        setCouponCode('');
-        return;
-      }
-
-      // Manual / chat orders: store active order and wait for processing
-      localStorage.setItem(
-        ACTIVE_ORDER_KEY,
-        JSON.stringify({
-          orderId: data.order.id,
-          tokenValue: token,
-        })
-      );
-
-      setActiveOrder({
-        id: data.order.id,
-        order_number: data.order.order_number,
-        status: 'pending',
-        response_message: null,
+      // Create order with completed status for auto-delivery
+      const { data: orderData, error: orderError } = await supabase.from('orders').insert({
+        token_id: tokenData.id,
         product_id: product.id,
         product_option_id: selectedOption.id,
-        amount: effectiveTotalPrice,
-        delivered_email: null,
-        delivered_password: null,
-        admin_notes: null,
-        delivered_at: null,
-      });
+        quantity: quantity,
+        amount: totalPrice,
+        total_price: totalPrice,
+        discount_amount: discountAmount,
+        coupon_code: appliedCoupon?.code || null,
+        status: 'completed',
+        response_message: combinedContent,
+        stock_content: combinedContent
+      }).select('id, order_number').single();
 
-      setCurrentOrderId(data.order.id);
-      setOrderStatus('pending');
-      setResponseMessage(null);
+      if (orderError || !orderData) {
+        toast({
+          title: 'خطأ',
+          description: 'فشل في إرسال الطلب',
+          variant: 'destructive',
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      // Mark all stock items as sold
+      const stockIds = stockItems.map(item => item.id);
+      await supabase
+        .from('stock_items')
+        .update({
+          is_sold: true,
+          sold_at: new Date().toISOString(),
+          sold_to_order_id: orderData.id
+        })
+        .in('id', stockIds);
+
+      // Update coupon usage count
+      if (appliedCoupon) {
+        const { data: couponData } = await supabase
+          .from('coupons')
+          .select('used_count')
+          .eq('code', appliedCoupon.code)
+          .single();
+
+        if (couponData) {
+          await supabase
+            .from('coupons')
+            .update({ used_count: (couponData.used_count || 0) + 1 })
+            .eq('code', appliedCoupon.code);
+        }
+      }
+
+      // Deduct balance
+      const newBalance = tokenBalance - totalPrice;
+      await supabase
+        .from('tokens')
+        .update({ balance: newBalance })
+        .eq('id', tokenData.id);
+
+      // Update local stock count
+      setOptionStockCounts(prev => ({
+        ...prev,
+        [selectedOption.id]: (prev[selectedOption.id] || 0) - quantity
+      }));
+
+      // Record device purchase for limit tracking
+      const deviceFingerprint = getFingerprint();
+      if (deviceFingerprint && selectedOption.purchase_limit && selectedOption.purchase_limit > 0) {
+        await supabase.from('device_purchases').insert({
+          device_fingerprint: deviceFingerprint,
+          product_option_id: selectedOption.id,
+          order_id: orderData.id,
+          quantity: quantity
+        });
+      }
+
+      setTokenBalance(newBalance);
+      setResponseMessage(combinedContent);
+      setResult('success');
       setIsLoading(false);
+      setStep('result');
       setAppliedCoupon(null);
       setCouponCode('');
-      // Stay on same page - don't change step
-    } catch (e) {
-      console.error('create-order invoke failed:', e);
+      return;
+    }
+
+    // For manual delivery products (including chat)
+    const isChatType = selectedOption.type === 'chat';
+    const chatQuantity = isChatType ? chatAccountsCount : 1;
+    const manualBasePrice = Number(selectedOption.price) * chatQuantity;
+    const manualTotalPrice = manualBasePrice - calculateDiscount(manualBasePrice);
+
+    const { data: orderData, error: orderError } = await supabase.from('orders').insert({
+      token_id: tokenData.id,
+      product_id: product.id,
+      product_option_id: selectedOption.id,
+      email: selectedOption.type === 'email_password' ? email : null,
+      password: selectedOption.type === 'email_password' ? password : null,
+      verification_link: selectedOption.type === 'link' ? verificationLink : (selectedOption.type === 'text' ? textInput : null),
+      quantity: isChatType ? chatQuantity : 1,
+      amount: manualTotalPrice,
+      total_price: manualTotalPrice,
+      discount_amount: calculateDiscount(manualBasePrice),
+      coupon_code: appliedCoupon?.code || null,
+      status: 'pending'
+    }).select('id, order_number').single();
+
+    if (orderError || !orderData) {
       toast({
         title: 'خطأ',
         description: 'فشل في إرسال الطلب',
@@ -685,6 +658,70 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
       setIsLoading(false);
       return;
     }
+
+    // Update coupon usage count
+    if (appliedCoupon) {
+      const { data: couponData } = await supabase
+        .from('coupons')
+        .select('used_count')
+        .eq('code', appliedCoupon.code)
+        .single();
+
+      if (couponData) {
+        await supabase
+          .from('coupons')
+          .update({ used_count: (couponData.used_count || 0) + 1 })
+          .eq('code', appliedCoupon.code);
+      }
+    }
+
+    // Deduct balance
+    const newBalance = tokenBalance - manualTotalPrice;
+    await supabase
+      .from('tokens')
+      .update({ balance: newBalance })
+      .eq('id', tokenData.id);
+
+    // Store active order in localStorage
+    localStorage.setItem(ACTIVE_ORDER_KEY, JSON.stringify({
+      orderId: orderData.id,
+      tokenValue: token
+    }));
+
+    // Record device purchase for limit tracking
+    const deviceFingerprintManual = getFingerprint();
+    if (deviceFingerprintManual && selectedOption.purchase_limit && selectedOption.purchase_limit > 0) {
+      await supabase.from('device_purchases').insert({
+        device_fingerprint: deviceFingerprintManual,
+        product_option_id: selectedOption.id,
+        order_id: orderData.id,
+        quantity: 1
+      });
+    }
+
+    // Set active order - stay on same page, show order status in second card
+    setActiveOrder({
+      id: orderData.id,
+      order_number: orderData.order_number,
+      status: 'pending',
+      response_message: null,
+      product_id: product.id,
+      product_option_id: selectedOption.id,
+      amount: manualTotalPrice,
+      delivered_email: null,
+      delivered_password: null,
+      admin_notes: null,
+      delivered_at: null
+    });
+
+    setTokenBalance(newBalance);
+    setCurrentOrderId(orderData.id);
+    setOrderStatus('pending');
+    setResponseMessage(null);
+    setIsLoading(false);
+    setAppliedCoupon(null);
+    setCouponCode('');
+    // Stay on same page - don't change step
   };
 
   const handleReset = () => {
@@ -898,13 +935,14 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
             setResult(null);
             setStep('initial');
 
-            // تحديث الرصيد عبر RPC
-            if (token) {
-              const { data: refreshed } = await supabase
-                .rpc('verify_token', { p_token: token.trim() })
+            // تحديث الرصيد من قاعدة البيانات
+            if (tokenData) {
+              const { data: currentToken } = await supabase
+                .from('tokens')
+                .select('balance')
+                .eq('id', tokenData.id)
                 .maybeSingle();
-              const row = refreshed as { balance: number } | null;
-              if (row) setTokenBalance(Number(row.balance));
+              if (currentToken) setTokenBalance(Number(currentToken.balance));
             }
 
             toast({ title: 'تم إلغاء الطلب', description: 'تم إلغاء الطلب' });
@@ -914,14 +952,15 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
           // Only show result for completed or rejected status
           if (updatedOrder.status === 'completed' || updatedOrder.status === 'rejected') {
             // لا نقوم بردّ الرصيد من هنا لتفادي التكرار (الرد يتم من لوحة الأدمن)
-            if (updatedOrder.status === 'rejected' && token) {
-              const { data: refreshed } = await supabase
-                .rpc('verify_token', { p_token: token.trim() })
+            if (updatedOrder.status === 'rejected' && tokenData) {
+              const { data: currentToken } = await supabase
+                .from('tokens')
+                .select('balance')
+                .eq('id', tokenData.id)
                 .maybeSingle();
 
-              const row = refreshed as { balance: number } | null;
-              if (row) {
-                setTokenBalance(Number(row.balance));
+              if (currentToken) {
+                setTokenBalance(Number(currentToken.balance));
               }
             }
 
@@ -952,35 +991,46 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
     if (!token.trim()) return;
 
     setIsLoading(true);
+    const data = await verifyToken(token);
 
-    const tokenValue = token.trim();
+    if (data) {
+      setTokenData(data);
+      setTokenBalance(Number(data.balance));
+      setShowBalance(true);
 
-    // 1) Try Edge Function (fast path if deployed)
-    try {
-      const { data, error } = await supabase.functions.invoke('get-token-orders', {
-        body: { tokenValue },
-      });
+      // Fetch orders for this token
+      const { data: ordersData } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('token_id', data.id)
+        .order('created_at', { ascending: false });
 
-      if (!error && data?.success) {
-        setTokenData(data.token);
-        setTokenBalance(Number(data.token.balance));
-        setShowBalance(true);
-        setTokenOrders((data.orders || []).map((o: any) => ({
-          ...o,
-          amount: o.amount || o.total_price,
-        })));
-        setTokenRecharges(data.recharges || []);
-        setTokenRefunds(data.refunds || []);
-        setIsLoading(false);
-        return;
+      // Fetch recharge requests for this token
+      const { data: rechargesData } = await supabase
+        .from('recharge_requests')
+        .select('*')
+        .eq('token_id', data.id)
+        .order('created_at', { ascending: false });
+
+      // Fetch refund requests for this token's orders
+      const orderNumbers = (ordersData || []).map((o: any) => o.order_number);
+      let refundsData: any[] = [];
+      if (orderNumbers.length > 0) {
+        const { data: refunds } = await supabase
+          .from('refund_requests')
+          .select('*')
+          .in('order_number', orderNumbers)
+          .order('created_at', { ascending: false });
+        refundsData = refunds || [];
       }
-    } catch (err) {
-      console.warn('get-token-orders failed, falling back:', err);
-    }
 
-    // 2) Fallback: verify token via RPC/verify-token and fetch related tables
-    const tokenResult = await verifyToken(tokenValue);
-    if (!tokenResult) {
+      setTokenOrders((ordersData || []).map(o => ({
+        ...o,
+        amount: o.amount || o.total_price
+      })));
+      setTokenRecharges(rechargesData || []);
+      setTokenRefunds(refundsData);
+    } else {
       toast({
         title: 'خطأ',
         description: 'التوكن غير صالح',
@@ -990,39 +1040,7 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
       setTokenOrders([]);
       setTokenRecharges([]);
       setTokenRefunds([]);
-      setIsLoading(false);
-      return;
     }
-
-    setTokenData(tokenResult);
-    setTokenBalance(Number((tokenResult as any).balance));
-    setShowBalance(true);
-
-    const [ordersRes, rechargesRes, refundsRes] = await Promise.all([
-      supabase
-        .from('orders')
-        .select('*')
-        .eq('token_id', (tokenResult as any).id)
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('recharge_requests')
-        .select('*')
-        .eq('token_id', (tokenResult as any).id)
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('refund_requests')
-        .select('*')
-        .eq('token_id', (tokenResult as any).id)
-        .order('created_at', { ascending: false }),
-    ]);
-
-    setTokenOrders((ordersRes.data || []).map((o: any) => ({
-      ...o,
-      amount: o.amount || o.total_price,
-    })));
-    setTokenRecharges(rechargesRes.data || []);
-    setTokenRefunds(refundsRes.data || []);
-
     setIsLoading(false);
   };
 
@@ -1547,9 +1565,10 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
                 <div>
                   <label className="block text-sm font-medium mb-2">النص المطلوب</label>
                   {/* عرض تعليمات المنتج الخاصة أو التعليمات العامة */}
-                  {selectedOption.required_text_info && (
+                  {(selectedOption.required_text_info || requiredTextInstructions) && (
                     <div className="p-3 mb-3 bg-primary/5 border border-primary/20 rounded-lg">
-                      <p className="text-sm text-muted-foreground">{selectedOption.required_text_info}</p>
+                      <p className="text-sm text-primary font-medium mb-1">اكتب المطلوب في وصف المنتج</p>
+                      <p className="text-sm text-muted-foreground">{selectedOption.required_text_info || requiredTextInstructions}</p>
                     </div>
                   )}
                   <textarea
@@ -1573,6 +1592,23 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
               {/* Buttons */}
               {activeOrder ? (
                 <div className="space-y-3">
+                  {/* Cancel button - always visible but disabled if in_progress */}
+                  <button
+                    onClick={handleCancelOrder}
+                    disabled={isLoading || activeOrder.status === 'in_progress'}
+                    className={`w-full py-3 rounded-lg transition-colors ${
+                      activeOrder.status === 'in_progress'
+                        ? 'bg-muted text-muted-foreground cursor-not-allowed'
+                        : 'bg-yellow-500 hover:bg-yellow-600 text-white disabled:opacity-50'
+                    }`}
+                  >
+                    {isLoading
+                      ? 'جاري الإلغاء...'
+                      : activeOrder.status === 'in_progress'
+                      ? '⚠️ لا يمكن الإلغاء - الطلب قيد التنفيذ'
+                      : 'إلغاء الطلب واسترداد المبلغ'}
+                  </button>
+
                   <div className="flex gap-3">
                     <button
                       onClick={() => setStep('initial')}

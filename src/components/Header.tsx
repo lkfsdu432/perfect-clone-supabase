@@ -37,45 +37,23 @@ const Header = () => {
       toast.error('ادخل التوكن');
       return;
     }
-
     setIsVerifying(true);
     try {
-      const normalized = rechargeToken.trim();
+      const { data, error } = await supabase
+        .from('tokens')
+        .select('id')
+        .eq('token', rechargeToken.trim())
+        .maybeSingle();
 
-      // 1) Prefer RPC (works even if tokens table SELECT is blocked)
-      try {
-        const { data, error } = await supabase.rpc('verify_token_public', {
-          token_value: normalized,
-        });
-
-        if (!error && data && (data as any).id) {
-          setTokenData({ id: (data as any).id });
-          saveToken(normalized);
-          return;
-        }
-
-        if (error) {
-          console.warn('Header verify_token_public rpc error:', error);
-        }
-      } catch (err) {
-        console.warn('Header verify_token_public rpc exception:', err);
-      }
-
-      // 2) Fallback to Edge Function
-      const { data, error } = await supabase.functions.invoke('verify-token', {
-        body: { token: normalized },
-      });
-
-      if (error || !data?.success || !data?.token?.id) {
+      if (error) throw error;
+      if (!data) {
         toast.error('التوكن غير موجود');
-        console.warn('Header verify-token function failed:', { error, response: data });
         return;
       }
-
-      setTokenData({ id: data.token.id });
-      saveToken(normalized);
+      setTokenData(data);
+      // حفظ التوكن في localStorage
+      saveToken(rechargeToken.trim());
     } catch (error) {
-      console.error('Header token verify error:', error);
       toast.error('حدث خطأ');
     } finally {
       setIsVerifying(false);
