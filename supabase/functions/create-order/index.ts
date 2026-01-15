@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.1?target=deno';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -6,12 +6,18 @@ const corsHeaders = {
 };
 
 Deno.serve(async (req) => {
+  console.log('=== create-order function called ===');
+  console.log('Method:', req.method);
+  console.log('Headers:', Object.fromEntries(req.headers.entries()));
+  
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
+    console.log('Handling OPTIONS preflight');
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
+    console.log('Processing POST request...');
     const body = await req.json();
     const {
       tokenValue,
@@ -294,9 +300,19 @@ Deno.serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Create order error:', error);
+    console.error('=== CRITICAL ERROR in create-order ===');
+    console.error('Error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('Error message:', errorMessage);
+    if (error instanceof Error && error.stack) {
+      console.error('Error stack:', error.stack);
+    }
     return new Response(
-      JSON.stringify({ success: false, error: 'Internal server error' }),
+      JSON.stringify({ 
+        success: false, 
+        error: 'INTERNAL_ERROR',
+        message: errorMessage
+      }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
