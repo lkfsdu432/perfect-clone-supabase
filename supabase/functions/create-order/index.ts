@@ -1,17 +1,27 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  // Include common Supabase + browser headers to avoid preflight failures
-  'Access-Control-Allow-Headers':
-    'authorization, x-client-info, apikey, content-type, accept, accept-profile, content-profile, prefer',
-  'Access-Control-Max-Age': '86400',
+const getCorsHeaders = (req: Request) => {
+  const origin = req.headers.get('Origin') ?? '*';
+  const reqHeaders = req.headers.get('Access-Control-Request-Headers');
+
+  return {
+    // Echo origin to avoid edge-case wildcard CORS failures in some environments
+    'Access-Control-Allow-Origin': origin,
+    'Vary': 'Origin',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    // Mirror requested headers when present (most robust for preflight)
+    'Access-Control-Allow-Headers':
+      reqHeaders ??
+      'authorization, x-client-info, apikey, content-type, accept, accept-profile, content-profile, prefer',
+    'Access-Control-Max-Age': '86400',
+  };
 };
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { status: 204, headers: corsHeaders });
   }
 
   try {
