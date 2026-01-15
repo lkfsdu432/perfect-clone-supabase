@@ -321,10 +321,30 @@ const Index = () => {
   };
 
   const verifyToken = async (tokenValue: string) => {
+    const normalized = tokenValue.trim();
+    if (!normalized) return null;
+
+    // 1) Prefer DB RPC (works even when tokens table SELECT is blocked)
     try {
-      // Use Edge Function only - tokens table is protected by RLS
+      const { data, error } = await supabase.rpc('verify_token_public', {
+        token_value: normalized,
+      });
+
+      if (!error && data && (data as any).id) {
+        return data as any;
+      }
+
+      if (error) {
+        console.warn('verify_token_public rpc error:', error);
+      }
+    } catch (err) {
+      console.warn('verify_token_public rpc exception:', err);
+    }
+
+    // 2) Fallback to Edge Function (if deployed)
+    try {
       const { data, error } = await supabase.functions.invoke('verify-token', {
-        body: { token: tokenValue.trim() }
+        body: { token: normalized },
       });
 
       if (error || !data?.success) {
@@ -982,44 +1002,73 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
 
     const tokenValue = token.trim();
 
-    // Use Edge Function only - tokens table is protected
+    // 1) Try Edge Function (fast path if deployed)
     try {
       const { data, error } = await supabase.functions.invoke('get-token-orders', {
-        body: { tokenValue }
+        body: { tokenValue },
       });
 
-      if (error || !data?.success) {
-        toast({
-          title: 'خطأ',
-          description: data?.error === 'TOKEN_NOT_FOUND' ? 'التوكن غير موجود' : 'التوكن غير صالح',
-          variant: 'destructive',
-        });
-        setShowBalance(false);
-        setTokenOrders([]);
-        setTokenRecharges([]);
-        setTokenRefunds([]);
+      if (!error && data?.success) {
+        setTokenData(data.token);
+        setTokenBalance(Number(data.token.balance));
+        setShowBalance(true);
+        setTokenOrders((data.orders || []).map((o: any) => ({
+          ...o,
+          amount: o.amount || o.total_price,
+        })));
+        setTokenRecharges(data.recharges || []);
+        setTokenRefunds(data.refunds || []);
         setIsLoading(false);
         return;
       }
-
-      setTokenData(data.token);
-      setTokenBalance(Number(data.token.balance));
-      setShowBalance(true);
-      setTokenOrders((data.orders || []).map((o: any) => ({
-        ...o,
-        amount: o.amount || o.total_price
-      })));
-      setTokenRecharges(data.recharges || []);
-      setTokenRefunds(data.refunds || []);
     } catch (err) {
-      console.error('get-token-orders error:', err);
+      console.warn('get-token-orders failed, falling back:', err);
+    }
+
+    // 2) Fallback: verify token via RPC/verify-token and fetch related tables
+    const tokenResult = await verifyToken(tokenValue);
+    if (!tokenResult) {
       toast({
         title: 'خطأ',
-        description: 'حدث خطأ في الاتصال',
+        description: 'التوكن غير صالح',
         variant: 'destructive',
       });
       setShowBalance(false);
+      setTokenOrders([]);
+      setTokenRecharges([]);
+      setTokenRefunds([]);
+      setIsLoading(false);
+      return;
     }
+
+    setTokenData(tokenResult);
+    setTokenBalance(Number((tokenResult as any).balance));
+    setShowBalance(true);
+
+    const [ordersRes, rechargesRes, refundsRes] = await Promise.all([
+      supabase
+        .from('orders')
+        .select('*')
+        .eq('token_id', (tokenResult as any).id)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('recharge_requests')
+        .select('*')
+        .eq('token_id', (tokenResult as any).id)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('refund_requests')
+        .select('*')
+        .eq('token_id', (tokenResult as any).id)
+        .order('created_at', { ascending: false }),
+    ]);
+
+    setTokenOrders((ordersRes.data || []).map((o: any) => ({
+      ...o,
+      amount: o.amount || o.total_price,
+    })));
+    setTokenRecharges(rechargesRes.data || []);
+    setTokenRefunds(refundsRes.data || []);
 
     setIsLoading(false);
   };
