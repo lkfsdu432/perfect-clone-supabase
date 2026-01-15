@@ -587,9 +587,8 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
         if (errorCode === 'INSUFFICIENT_BALANCE') description = 'الرصيد غير كافي';
         if (errorCode === 'HAS_PENDING_ORDER') description = data?.message || 'لديك طلب قيد التنفيذ';
         if (errorCode === 'PURCHASE_LIMIT_REACHED') description = 'لقد وصلت للحد الأقصى للشراء لهذا المنتج من هذا الجهاز';
-        if (errorCode === 'INSUFFICIENT_STOCK') {
-          description = `المخزون غير كافي. متوفر فقط ${data?.available ?? 0} قطعة`;
-        }
+        if (errorCode === 'INSUFFICIENT_STOCK') description = `المخزون غير كافي. متوفر فقط ${data?.available ?? 0} قطعة`;
+        if (errorCode === 'BALANCE_DEDUCT_FAILED') description = 'حدث خطأ أثناء خصم الرصيد (راجع إعدادات قاعدة البيانات)';
 
         toast({
           title: 'خطأ',
