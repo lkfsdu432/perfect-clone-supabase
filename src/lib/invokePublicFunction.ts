@@ -14,6 +14,9 @@ export async function invokePublicFunction<T>(
       method: "POST",
       headers: {
         apikey: SUPABASE_PUBLISHABLE_KEY,
+        // Some gateways require Authorization to be present; using the publishable key
+        // keeps it public while allowing CORS headers to be applied consistently.
+        authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
