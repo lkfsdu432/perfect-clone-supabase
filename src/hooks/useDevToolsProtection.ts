@@ -6,7 +6,7 @@ const useDevToolsProtection = () => {
     const handleContextMenu = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       // السماح بالكليك يمين داخل العناصر اللي فيها class "select-text"
-      if (target.closest('.select-text')) {
+      if (target && typeof target.closest === 'function' && target.closest('.select-text')) {
         return;
       }
       e.preventDefault();
@@ -55,11 +55,11 @@ const useDevToolsProtection = () => {
     const handleSelectStart = (e: Event) => {
       const target = e.target as HTMLElement;
       // السماح بالتحديد في input و textarea
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
         return true;
       }
       // السماح بالتحديد في العناصر اللي فيها class "select-text"
-      if (target.closest('.select-text')) {
+      if (target && typeof target.closest === 'function' && target.closest('.select-text')) {
         return true;
       }
     };
