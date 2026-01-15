@@ -35,11 +35,11 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Verify token
+    // Verify token (case-insensitive)
     const { data: tokenData, error: tokenError } = await supabase
       .from('tokens')
       .select('id, balance, is_blocked')
-      .eq('token', tokenValue.trim())
+      .ilike('token', tokenValue.trim())
       .maybeSingle();
 
     if (tokenError || !tokenData) {
@@ -199,10 +199,28 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Deduct balance (must succeed)
+    const newBalance = Number(tokenData.balance) - Number(totalPrice);
+    const { error: balanceError } = await supabase
+      .from('tokens')
+      .update({ balance: newBalance })
+      .eq('id', tokenData.id);
+
+    if (balanceError) {
+      console.error('Balance deduction failed:', balanceError);
+      // best-effort rollback: delete order so we don't deliver without charging
+      await supabase.from('orders').delete().eq('id', orderData.id);
+
+      return new Response(
+        JSON.stringify({ success: false, error: 'BALANCE_DEDUCT_FAILED' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Mark stock as sold
     if (isAutoDelivery && stockItems.length > 0) {
       const stockIds = stockItems.map(item => item.id);
-      await supabase
+      const { error: stockUpdError } = await supabase
         .from('stock_items')
         .update({
           is_sold: true,
@@ -210,6 +228,10 @@ Deno.serve(async (req) => {
           sold_to_order_id: orderData.id
         })
         .in('id', stockIds);
+
+      if (stockUpdError) {
+        console.error('Stock update failed:', stockUpdError);
+      }
     }
 
     // Update coupon usage
@@ -221,28 +243,29 @@ Deno.serve(async (req) => {
         .single();
 
       if (couponData) {
-        await supabase
+        const { error: couponUpdError } = await supabase
           .from('coupons')
           .update({ used_count: (couponData.used_count || 0) + 1 })
           .eq('code', couponCode.toUpperCase().trim());
+
+        if (couponUpdError) {
+          console.error('Coupon usage update failed:', couponUpdError);
+        }
       }
     }
 
-    // Deduct balance
-    const newBalance = tokenData.balance - totalPrice;
-    await supabase
-      .from('tokens')
-      .update({ balance: newBalance })
-      .eq('id', tokenData.id);
-
     // Record device purchase
     if (deviceFingerprint && option.purchase_limit && option.purchase_limit > 0) {
-      await supabase.from('device_purchases').insert({
+      const { error: devicePurchaseError } = await supabase.from('device_purchases').insert({
         device_fingerprint: deviceFingerprint,
         product_option_id: productOptionId,
         order_id: orderData.id,
         quantity: orderQuantity
       });
+
+      if (devicePurchaseError) {
+        console.error('Device purchase insert failed:', devicePurchaseError);
+      }
     }
 
     return new Response(
