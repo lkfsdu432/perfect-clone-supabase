@@ -19,7 +19,6 @@ import NewsManagement from '@/components/admin/NewsManagement';
 import TokenActivityLog from '@/components/admin/TokenActivityLog';
 import StockManagement from '@/components/admin/StockManagement';
 import VisitCounter from "@/components/admin/VisitCounter";
-import MaintenanceToggle from '@/components/admin/MaintenanceToggle';
 
 interface Product {
   id: string;
@@ -815,11 +814,10 @@ interface UserPermissions {
   can_manage_stock: boolean;
   can_manage_coupons: boolean;
   can_manage_users: boolean;
-  is_super_admin?: boolean;
 }
 
 const Admin = () => {
-  const [activeTab, setActiveTab] = useState<'products' | 'tokens' | 'orders' | 'refunds' | 'users' | 'coupons' | 'recharges' | 'payment_methods' | 'admin_users' | 'news' | 'token_log' | 'stock' | 'settings'>('orders');
+  const [activeTab, setActiveTab] = useState<'products' | 'tokens' | 'orders' | 'refunds' | 'users' | 'coupons' | 'recharges' | 'payment_methods' | 'admin_users' | 'news' | 'token_log' | 'stock'>('orders');
   const [products, setProducts] = useState<Product[]>([]);
   const [productOptions, setProductOptions] = useState<ProductOption[]>([]);
   const [tokens, setTokens] = useState<Token[]>([]);
@@ -1913,14 +1911,13 @@ const Admin = () => {
               { id: 'coupons', label: 'كوبونات', icon: Ticket, count: null, permission: 'can_manage_coupons' },
               { id: 'news', label: 'أخبار', icon: Newspaper, count: null, permission: 'can_manage_products' },
               { id: 'admin_users', label: 'مدراء', icon: Users, count: null, permission: 'can_manage_users' },
-              { id: 'settings', label: 'إعدادات', icon: Settings, count: null, permission: 'is_super_admin' },
             ].filter(tab => isAdmin || (userPermissions && userPermissions[tab.permission as keyof UserPermissions])).map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id as 'products' | 'tokens' | 'orders' | 'refunds' | 'users' | 'coupons' | 'recharges' | 'payment_methods' | 'admin_users' | 'news' | 'token_log' | 'stock' | 'settings')}
+                  onClick={() => setActiveTab(tab.id as 'products' | 'tokens' | 'orders' | 'refunds' | 'users' | 'coupons' | 'recharges' | 'payment_methods' | 'admin_users' | 'news' | 'token_log' | 'stock')}
                   className={`relative flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
                     isActive
                       ? 'bg-primary text-primary-foreground shadow-md'
@@ -2888,13 +2885,6 @@ const Admin = () => {
 
       {/* Stock Management Tab */}
       {activeTab === 'stock' && <StockManagement />}
-
-      {/* Settings Tab */}
-      {activeTab === 'settings' && (
-        <div className="space-y-4">
-          <MaintenanceToggle />
-        </div>
-      )}
     </div>
   );
 };
