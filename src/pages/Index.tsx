@@ -347,16 +347,38 @@ const Index = () => {
         body: { token: normalized },
       });
 
-      if (error || !data?.success) {
-        console.error('Token verify error:', error || data?.error);
-        return null;
+      if (!error && data?.success && data?.token?.id) {
+        return data.token;
       }
 
-      return data.token;
+      console.warn('verify-token function failed:', {
+        error,
+        response: data,
+      });
     } catch (err) {
-      console.error('Token verify exception:', err);
-      return null;
+      console.warn('verify-token function exception:', err);
     }
+
+    // 3) Last resort: direct DB SELECT (works only if RLS allows it)
+    try {
+      const { data, error } = await supabase
+        .from('tokens')
+        .select('id, balance, is_blocked')
+        .ilike('token', normalized)
+        .maybeSingle();
+
+      if (!error && data?.id) {
+        return data as any;
+      }
+
+      if (error) {
+        console.warn('tokens direct select error:', error);
+      }
+    } catch (err) {
+      console.warn('tokens direct select exception:', err);
+    }
+
+    return null;
   };
 
   const handleBuySubmit = async () => {
