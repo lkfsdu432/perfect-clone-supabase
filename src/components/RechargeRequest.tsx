@@ -52,14 +52,14 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
         .order('display_order');
       setPaymentMethods((methods || []) as PaymentMethod[]);
 
-      // Fetch dollar rate عبر Edge Function (عشان نقدر نقفل /settings)
-      try {
-        const { data, error } = await supabase.functions.invoke('get-dollar-rate');
-        if (!error && data?.success && typeof data.rate === 'number') {
-          setDollarRate(data.rate);
-        }
-      } catch {
-        // keep default
+      const { data: settings } = await supabase
+        .from('settings')
+        .select('value')
+        .eq('key', 'dollar_rate')
+        .maybeSingle();
+
+      if (settings?.value) {
+        setDollarRate(Number(settings.value));
       }
     };
     fetchData();
@@ -95,13 +95,13 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
 
     setIsSubmitting(true);
     try {
+      let finalTokenId = tokenId;
       let newToken: string | null = null;
-      let userIp: string | null = null;
 
-      // لو مفيش tokenId يبقى هننشئ توكن جديد
       if (!tokenId) {
         newToken = generateToken();
         
+        let userIp: string | null = null;
         try {
           const ipResponse = await fetch('https://api.ipify.org?format=json');
           const ipData = await ipResponse.json();
@@ -109,12 +109,25 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
         } catch (e) {
           console.log('Could not fetch IP');
         }
+
+        const { data: tokenData, error: tokenError } = await supabase
+          .from('tokens')
+          .insert({ 
+            token: newToken, 
+            balance: 0,
+            created_ip: userIp
+          })
+          .select('id')
+          .single();
+
+        if (tokenError) throw tokenError;
+        finalTokenId = tokenData.id;
+        setGeneratedToken(newToken);
+        localStorage.setItem(TOKEN_STORAGE_KEY, newToken);
       }
 
-      // رفع الصورة أولاً
       const fileExt = proofImage.name.split('.').pop();
-      const tempId = tokenId || `temp-${Date.now()}`;
-      const fileName = `${tempId}-${Date.now()}.${fileExt}`;
+      const fileName = `${finalTokenId}-${Date.now()}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from('payment-proofs')
@@ -126,32 +139,23 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
         .from('payment-proofs')
         .getPublicUrl(fileName);
 
-      // إرسال الطلب عبر Edge Function
-      const { data, error } = await supabase.functions.invoke('submit-recharge', {
-        body: {
-          token_id: tokenId || null,
-          new_token: newToken,
+      const { error: insertError } = await supabase
+        .from('recharge_requests')
+        .insert({
+          token_id: finalTokenId,
           amount: selectedAmount,
           payment_method: selectedMethod.name,
           payment_method_id: selectedMethod.id,
           proof_image_url: publicUrl,
           sender_reference: senderReference.trim() || null,
-          user_ip: userIp
-        }
-      });
+          status: 'pending'
+        });
 
-      if (error) throw error;
-      if (!data?.success) throw new Error(data?.error || 'فشل إرسال الطلب');
-
-      // لو تم إنشاء توكن جديد
-      if (data.created_token) {
-        setGeneratedToken(data.created_token);
-        localStorage.setItem(TOKEN_STORAGE_KEY, data.created_token);
-        onTokenGenerated?.(data.created_token);
-      }
+      if (insertError) throw insertError;
 
       setIsSubmitted(true);
       toast.success("تم إرسال الطلب!");
+      if (newToken) onTokenGenerated?.(newToken);
       onSuccess?.();
     } catch (error) {
       console.error('Error:', error);

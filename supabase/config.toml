@@ -15,12 +15,3 @@ verify_jwt = false
 
 [functions.get-refund-status]
 verify_jwt = false
-
-[functions.get-dollar-rate]
-verify_jwt = false
-
-[functions.set-dollar-rate]
-verify_jwt = false
-
-[functions.submit-recharge]
-verify_jwt = false

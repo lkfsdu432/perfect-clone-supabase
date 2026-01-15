@@ -39,17 +39,18 @@ const Header = () => {
     }
     setIsVerifying(true);
     try {
-      // استخدام Edge Function الآمنة بدلاً من الاستدعاء المباشر
-      const { data, error } = await supabase.functions.invoke('verify-token', {
-        body: { token: rechargeToken.trim() }
-      });
+      const { data, error } = await supabase
+        .from('tokens')
+        .select('id')
+        .eq('token', rechargeToken.trim())
+        .maybeSingle();
 
-      if (error || !data?.success) {
+      if (error) throw error;
+      if (!data) {
         toast.error('التوكن غير موجود');
         return;
       }
-      
-      setTokenData({ id: data.token.id });
+      setTokenData(data);
       // حفظ التوكن في localStorage
       saveToken(rechargeToken.trim());
     } catch (error) {
