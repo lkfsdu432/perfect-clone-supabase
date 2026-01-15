@@ -196,7 +196,7 @@ const Index = () => {
         // لا نقوم بردّ الرصيد من هنا لتفادي التكرار (الرد يتم من لوحة الأدمن)
         if (updated.status === 'rejected' && tokenData) {
           const { data: currentToken } = await supabase
-            .from('tokens_public')
+            .from('tokens')
             .select('balance')
             .eq('id', tokenData.id)
             .maybeSingle();
@@ -228,7 +228,7 @@ const Index = () => {
         // تحديث الرصيد من قاعدة البيانات (في حالة تم ردّ المبلغ من الأدمن)
         if (tokenData) {
           const { data: currentToken } = await supabase
-            .from('tokens_public')
+            .from('tokens')
             .select('balance')
             .eq('id', tokenData.id)
             .maybeSingle();
@@ -323,7 +323,7 @@ const Index = () => {
 
   const verifyToken = async (tokenValue: string) => {
     const { data } = await supabase
-      .from('tokens_public')
+      .from('tokens')
       .select('id, balance, is_blocked')
       .eq('token', tokenValue)
       .maybeSingle();
@@ -592,7 +592,7 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
       // Deduct balance
       const newBalance = tokenBalance - totalPrice;
       await supabase
-        .from('tokens_public')
+        .from('tokens')
         .update({ balance: newBalance })
         .eq('id', tokenData.id);
 
@@ -673,7 +673,7 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
     // Deduct balance
     const newBalance = tokenBalance - manualTotalPrice;
     await supabase
-      .from('tokens_public')
+      .from('tokens')
       .update({ balance: newBalance })
       .eq('id', tokenData.id);
 
@@ -840,7 +840,7 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
 
         // Refund balance
         const { data: currentToken } = await supabase
-          .from('tokens_public')
+          .from('tokens')
           .select('balance')
           .eq('id', tokenData.id)
           .maybeSingle();
@@ -849,7 +849,7 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
 
         newBalance = Number(currentToken.balance) + refundAmount;
         const { error: tokenError } = await supabase
-          .from('tokens_public')
+          .from('tokens')
           .update({ balance: newBalance })
           .eq('id', tokenData.id);
 
@@ -933,7 +933,7 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
             // تحديث الرصيد من قاعدة البيانات
             if (tokenData) {
               const { data: currentToken } = await supabase
-                .from('tokens_public')
+                .from('tokens')
                 .select('balance')
                 .eq('id', tokenData.id)
                 .maybeSingle();
@@ -949,7 +949,7 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
             // لا نقوم بردّ الرصيد من هنا لتفادي التكرار (الرد يتم من لوحة الأدمن)
             if (updatedOrder.status === 'rejected' && tokenData) {
               const { data: currentToken } = await supabase
-                .from('tokens_public')
+                .from('tokens')
                 .select('balance')
                 .eq('id', tokenData.id)
                 .maybeSingle();
@@ -1059,7 +1059,7 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
 
     const refetchBalance = async () => {
       const { data: currentToken } = await supabase
-        .from('tokens_public')
+        .from('tokens')
         .select('balance')
         .eq('id', tokenData.id)
         .maybeSingle();
