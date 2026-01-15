@@ -299,17 +299,16 @@ const Index = () => {
     const { data: productsData } = await supabase.from('products').select('*').eq('is_active', true).order('name');
     const { data: optionsData } = await supabase.from('product_options').select('*').eq('is_active', true);
 
-    // Fetch stock counts for auto-delivery options
+    // Fetch stock counts using secure view
     const { data: stockData } = await supabase
-      .from('stock_items')
-      .select('product_option_id')
-      .eq('is_sold', false);
+      .from('stock_availability')
+      .select('product_option_id, available_count');
 
-    // Count stock per option
+    // Build counts from view data
     const counts: Record<string, number> = {};
     stockData?.forEach(item => {
       if (item.product_option_id) {
-        counts[item.product_option_id] = (counts[item.product_option_id] || 0) + 1;
+        counts[item.product_option_id] = item.available_count || 0;
       }
     });
 
@@ -322,13 +321,25 @@ const Index = () => {
   };
 
   const verifyToken = async (tokenValue: string) => {
-    const { data } = await supabase
-      .from('tokens')
-      .select('id, balance, is_blocked')
-      .eq('token', tokenValue)
-      .maybeSingle();
+    try {
+      const { data, error } = await supabase.functions.invoke('verify-token', {
+        body: { token: tokenValue.trim() }
+      });
 
-    return data;
+      if (error || !data?.success) {
+        return null;
+      }
+
+      return data.token;
+    } catch {
+      // Fallback to direct query if Edge Function not available
+      const { data } = await supabase
+        .from('tokens')
+        .select('id, balance, is_blocked')
+        .eq('token', tokenValue)
+        .maybeSingle();
+      return data;
+    }
   };
 
   const handleBuySubmit = async () => {
@@ -357,23 +368,8 @@ const Index = () => {
       return;
     }
 
-    // التحقق من وجود طلب نشط (pending أو in_progress) لهذا التوكن
-    const { data: pendingOrders, error: pendingError } = await supabase
-      .from('orders')
-      .select('id, order_number, status')
-      .eq('token_id', data.id)
-      .in('status', ['pending', 'in_progress'])
-      .limit(1);
-
-    if (!pendingError && pendingOrders && pendingOrders.length > 0) {
-      setIsLoading(false);
-      toast({
-        title: 'لديك طلب قيد التنفيذ',
-        description: `لا يمكنك إنشاء طلب جديد حتى يكتمل الطلب الحالي #${pendingOrders[0].order_number}`,
-        variant: 'destructive',
-      });
-      return;
-    }
+    // التحقق من وجود طلب نشط - يتم التحقق عبر Edge Function عند إنشاء الطلب
+    // لا حاجة للتحقق هنا - سيتم التحقق في handleOrderSubmit
 
     setIsLoading(false);
     setTokenData(data);
@@ -986,52 +982,51 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
     if (!token.trim()) return;
 
     setIsLoading(true);
-    const data = await verifyToken(token);
+    
+    try {
+      // Use Edge Function to get token orders securely
+      const { data, error } = await supabase.functions.invoke('get-token-orders', {
+        body: { tokenValue: token.trim() }
+      });
 
-    if (data) {
-      setTokenData(data);
-      setTokenBalance(Number(data.balance));
-      setShowBalance(true);
-
-      // Fetch orders for this token
-      const { data: ordersData } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('token_id', data.id)
-        .order('created_at', { ascending: false });
-
-      // Fetch recharge requests for this token
-      const { data: rechargesData } = await supabase
-        .from('recharge_requests')
-        .select('*')
-        .eq('token_id', data.id)
-        .order('created_at', { ascending: false });
-
-      // Fetch refund requests for this token's orders
-      const orderNumbers = (ordersData || []).map((o: any) => o.order_number);
-      let refundsData: any[] = [];
-      if (orderNumbers.length > 0) {
-        const { data: refunds } = await supabase
-          .from('refund_requests')
-          .select('*')
-          .in('order_number', orderNumbers)
-          .order('created_at', { ascending: false });
-        refundsData = refunds || [];
+      if (error || !data?.success) {
+        toast({
+          title: 'خطأ',
+          description: 'التوكن غير صالح',
+          variant: 'destructive',
+        });
+        setShowBalance(false);
+        setTokenOrders([]);
+        setTokenRecharges([]);
+        setTokenRefunds([]);
+        setIsLoading(false);
+        return;
       }
 
-      setTokenOrders((ordersData || []).map(o => ({
+      setTokenData(data.token);
+      setTokenBalance(Number(data.token.balance));
+      setShowBalance(true);
+      setTokenOrders((data.orders || []).map((o: any) => ({
         ...o,
         amount: o.amount || o.total_price
       })));
-      setTokenRecharges(rechargesData || []);
-      setTokenRefunds(refundsData);
-    } else {
-      toast({
-        title: 'خطأ',
-        description: 'التوكن غير صالح',
-        variant: 'destructive',
-      });
-      setShowBalance(false);
+      setTokenRecharges(data.recharges || []);
+      setTokenRefunds(data.refunds || []);
+    } catch {
+      // Fallback to direct query if Edge Function not available
+      const tokenResult = await verifyToken(token);
+      if (tokenResult) {
+        setTokenData(tokenResult);
+        setTokenBalance(Number(tokenResult.balance));
+        setShowBalance(true);
+      } else {
+        toast({
+          title: 'خطأ',
+          description: 'التوكن غير صالح',
+          variant: 'destructive',
+        });
+        setShowBalance(false);
+      }
       setTokenOrders([]);
       setTokenRecharges([]);
       setTokenRefunds([]);
