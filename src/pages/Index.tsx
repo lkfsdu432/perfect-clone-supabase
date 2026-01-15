@@ -327,24 +327,13 @@ supabase.from('settings').select('value').eq('key', 'required_text_instructions'
   };
 
   const verifyToken = async (tokenValue: string) => {
-    try {
-      const { data, error } = await supabase.functions.invoke('verify-token', {
-        body: { token: tokenValue, action: 'verify' }
-      });
-      
-      if (error || !data?.valid) {
-        return null;
-      }
-      
-      return {
-        id: data.token_id,
-        balance: data.balance,
-        is_blocked: false
-      };
-    } catch (err) {
-      console.error('Token verification error:', err);
-      return null;
-    }
+    const { data } = await supabase
+      .from('tokens')
+      .select('id, balance, is_blocked')
+      .eq('token', tokenValue)
+      .maybeSingle();
+
+    return data;
   };
 
   const handleBuySubmit = async () => {
@@ -605,11 +594,12 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
         }
       }
 
-      // Deduct balance using edge function
-      const { data: deductResult } = await supabase.functions.invoke('verify-token', {
-        body: { token: token, action: 'deduct', amount: totalPrice }
-      });
-      const newBalance = deductResult?.balance ?? (tokenBalance - totalPrice);
+      // Deduct balance
+      const newBalance = tokenBalance - totalPrice;
+      await supabase
+        .from('tokens')
+        .update({ balance: newBalance })
+        .eq('id', tokenData.id);
 
       // Update local stock count
       setOptionStockCounts(prev => ({
@@ -685,11 +675,12 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
       }
     }
 
-    // Deduct balance using edge function
-    const { data: deductResult } = await supabase.functions.invoke('verify-token', {
-      body: { token: token, action: 'deduct', amount: manualTotalPrice }
-    });
-    const newBalance = deductResult?.balance ?? (tokenBalance - manualTotalPrice);
+    // Deduct balance
+    const newBalance = tokenBalance - manualTotalPrice;
+    await supabase
+      .from('tokens')
+      .update({ balance: newBalance })
+      .eq('id', tokenData.id);
 
     // Store active order in localStorage
     localStorage.setItem(ACTIVE_ORDER_KEY, JSON.stringify({
