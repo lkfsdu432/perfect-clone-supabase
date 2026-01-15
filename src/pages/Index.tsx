@@ -965,14 +965,13 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
             setResult(null);
             setStep('initial');
 
-            // تحديث الرصيد من قاعدة البيانات
-            if (tokenData) {
-              const { data: currentToken } = await supabase
-                .from('tokens')
-                .select('balance')
-                .eq('id', tokenData.id)
+            // تحديث الرصيد عبر RPC
+            if (token) {
+              const { data: refreshed } = await supabase
+                .rpc('verify_token', { p_token: token.trim() })
                 .maybeSingle();
-              if (currentToken) setTokenBalance(Number(currentToken.balance));
+              const row = refreshed as { balance: number } | null;
+              if (row) setTokenBalance(Number(row.balance));
             }
 
             toast({ title: 'تم إلغاء الطلب', description: 'تم إلغاء الطلب' });
@@ -982,15 +981,14 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
           // Only show result for completed or rejected status
           if (updatedOrder.status === 'completed' || updatedOrder.status === 'rejected') {
             // لا نقوم بردّ الرصيد من هنا لتفادي التكرار (الرد يتم من لوحة الأدمن)
-            if (updatedOrder.status === 'rejected' && tokenData) {
-              const { data: currentToken } = await supabase
-                .from('tokens')
-                .select('balance')
-                .eq('id', tokenData.id)
+            if (updatedOrder.status === 'rejected' && token) {
+              const { data: refreshed } = await supabase
+                .rpc('verify_token', { p_token: token.trim() })
                 .maybeSingle();
 
-              if (currentToken) {
-                setTokenBalance(Number(currentToken.balance));
+              const row = refreshed as { balance: number } | null;
+              if (row) {
+                setTokenBalance(Number(row.balance));
               }
             }
 
