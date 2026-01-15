@@ -52,14 +52,14 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
         .order('display_order');
       setPaymentMethods((methods || []) as PaymentMethod[]);
 
-      const { data: settings } = await supabase
-        .from('settings')
-        .select('value')
-        .eq('key', 'dollar_rate')
-        .maybeSingle();
-
-      if (settings?.value) {
-        setDollarRate(Number(settings.value));
+      // Fetch dollar rate عبر Edge Function (عشان نقدر نقفل /settings)
+      try {
+        const { data, error } = await supabase.functions.invoke('get-dollar-rate');
+        if (!error && data?.success && typeof data.rate === 'number') {
+          setDollarRate(data.rate);
+        }
+      } catch {
+        // keep default
       }
     };
     fetchData();

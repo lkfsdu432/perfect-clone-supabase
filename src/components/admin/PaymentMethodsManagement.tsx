@@ -65,15 +65,10 @@ export const PaymentMethodsManagement = () => {
       if (error) throw error;
       setMethods((data || []) as PaymentMethod[]);
 
-      // Fetch dollar rate
-      const { data: settings } = await supabase
-        .from('settings')
-        .select('value')
-        .eq('key', 'dollar_rate')
-        .maybeSingle();
-
-      if (settings?.value) {
-        setDollarRate(settings.value);
+      // Fetch dollar rate عبر Edge Function (عشان نقدر نقفل /settings)
+      const { data: rateData, error: rateError } = await supabase.functions.invoke('get-dollar-rate');
+      if (!rateError && rateData?.success && typeof rateData.rate === 'number') {
+        setDollarRate(String(rateData.rate));
       }
     } catch (error) {
       console.error('Error:', error);
@@ -239,33 +234,15 @@ export const PaymentMethodsManagement = () => {
 
     setSavingRate(true);
     try {
-      // Check if setting exists
-      const { data: existing } = await supabase
-        .from('settings')
-        .select('id')
-        .eq('key', 'dollar_rate')
-        .maybeSingle();
+      const { data, error } = await supabase.functions.invoke('set-dollar-rate', {
+        body: { rate: Number(dollarRate) },
+      });
 
-      if (existing) {
-        const { error } = await supabase
-          .from('settings')
-          .update({
-            value: dollarRate,
-            updated_at: new Date().toISOString()
-          })
-          .eq('key', 'dollar_rate');
-
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('settings')
-          .insert({
-            key: 'dollar_rate',
-            value: dollarRate
-          });
-
-        if (error) throw error;
+      if (error || !data?.success) {
+        toast.error("فشل حفظ سعر الدولار");
+        return;
       }
+
       toast.success("تم حفظ سعر الدولار");
     } catch (error) {
       console.error('Error:', error);
