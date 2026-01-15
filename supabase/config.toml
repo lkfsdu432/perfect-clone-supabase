@@ -1,2 +1,17 @@
 [functions.cancel-order]
 verify_jwt = false
+
+[functions.verify-token]
+verify_jwt = false
+
+[functions.get-token-orders]
+verify_jwt = false
+
+[functions.create-order]
+verify_jwt = false
+
+[functions.submit-refund]
+verify_jwt = false
+
+[functions.get-refund-status]
+verify_jwt = false
