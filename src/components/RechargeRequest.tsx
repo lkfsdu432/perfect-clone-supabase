@@ -99,8 +99,6 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
       let newToken: string | null = null;
 
       if (!tokenId) {
-        newToken = generateToken();
-        
         let userIp: string | null = null;
         try {
           const ipResponse = await fetch('https://api.ipify.org?format=json');
@@ -110,18 +108,16 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
           console.log('Could not fetch IP');
         }
 
+        // استخدام RPC بدلاً من INSERT المباشر
         const { data: tokenData, error: tokenError } = await supabase
-          .from('tokens')
-          .insert({ 
-            token: newToken, 
-            balance: 0,
-            created_ip: userIp
-          })
-          .select('id')
-          .single();
+          .rpc('create_recharge_token', { p_created_ip: userIp })
+          .maybeSingle();
 
-        if (tokenError) throw tokenError;
-        finalTokenId = tokenData.id;
+        if (tokenError || !tokenData) throw tokenError || new Error('Failed to create token');
+        
+        const rpcResult = tokenData as { id: string; token: string };
+        finalTokenId = rpcResult.id;
+        newToken = rpcResult.token;
         setGeneratedToken(newToken);
         localStorage.setItem(TOKEN_STORAGE_KEY, newToken);
       }
