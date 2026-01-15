@@ -37,23 +37,27 @@ const Header = () => {
       toast.error('ادخل التوكن');
       return;
     }
+
     setIsVerifying(true);
     try {
-      const { data, error } = await supabase
-        .from('tokens')
-        .select('id')
-        .eq('token', rechargeToken.trim())
-        .maybeSingle();
+      const normalized = rechargeToken.trim();
+
+      // Prefer RPC (works even if tokens table SELECT is blocked)
+      const { data, error } = await supabase.rpc('verify_token_public', {
+        token_value: normalized,
+      });
 
       if (error) throw error;
-      if (!data) {
+      if (!data || !(data as any).id) {
         toast.error('التوكن غير موجود');
         return;
       }
-      setTokenData(data);
+
+      setTokenData({ id: (data as any).id });
       // حفظ التوكن في localStorage
-      saveToken(rechargeToken.trim());
+      saveToken(normalized);
     } catch (error) {
+      console.error('Header token verify error:', error);
       toast.error('حدث خطأ');
     } finally {
       setIsVerifying(false);
