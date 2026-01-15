@@ -92,24 +92,37 @@ export const RechargeManagement = () => {
     setProcessing(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke('process-recharge', {
-        body: {
-          requestId: selectedRequest.id,
-          action: actionType,
-          adminNote: adminNote || null,
-        },
-      });
+      if (actionType === 'approve') {
+        // Use RPC function for approval
+        const { data, error } = await supabase.rpc(
+          'approve_recharge_request',
+          { p_request_id: selectedRequest.id }
+        );
 
-      if (error || !data?.success) {
-        console.error('process-recharge failed:', { error, data });
-        throw error || new Error(data?.error || 'PROCESS_RECHARGE_FAILED');
+        if (error || !data?.ok) {
+          console.error('approve_recharge_request failed:', { error, data });
+          throw new Error(data?.error || error?.message || 'APPROVAL_FAILED');
+        }
+
+        // Update admin note if provided
+        if (adminNote) {
+          await supabase
+            .from('recharge_requests')
+            .update({ admin_note: adminNote })
+            .eq('id', selectedRequest.id);
+        }
+
+        toast.success(`تمت الموافقة وشحن الرصيد بنجاح ✅`);
+      } else {
+        // Reject request
+        const { error } = await supabase
+          .from('recharge_requests')
+          .update({ status: 'rejected', admin_note: adminNote || null })
+          .eq('id', selectedRequest.id);
+
+        if (error) throw error;
+        toast.success('تم رفض الطلب');
       }
-
-      toast.success(
-        actionType === 'approve'
-          ? `تم الموافقة وإضافة ${selectedRequest.amount} للرصيد`
-          : 'تم رفض الطلب'
-      );
 
       setShowActionModal(false);
       setSelectedRequest(null);
