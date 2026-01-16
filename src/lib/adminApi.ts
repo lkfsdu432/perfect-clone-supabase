@@ -1,4 +1,10 @@
 const SUPABASE_URL = "https://ymcabvghfecbbbugkpow.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_yCJbSd21pHp6YsfEGdP4fg_eFqvd9im";
+const EDGE_HEADERS = {
+  'Content-Type': 'application/json',
+  apikey: SUPABASE_ANON_KEY,
+  Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+} as const;
 
 export interface AdminPermissions {
   is_super_admin: boolean;
@@ -26,7 +32,7 @@ export async function adminLogin(username: string, password: string): Promise<{ 
   try {
     const response = await fetch(`${SUPABASE_URL}/functions/v1/admin-auth`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: EDGE_HEADERS,
       body: JSON.stringify({ username, password }),
     });
 
@@ -78,7 +84,7 @@ export async function adminAction<T = any>(
   try {
     const response = await fetch(`${SUPABASE_URL}/functions/v1/admin-action`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: EDGE_HEADERS,
       body: JSON.stringify({ 
         admin_id: admin.id, 
         action, 
