@@ -976,7 +976,6 @@ if (refreshed) {
             setStep('result');
           }
         }
-      )
       .subscribe();
 
     return () => {
