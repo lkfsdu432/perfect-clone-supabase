@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Upload, Loader2, CheckCircle, Copy, Wallet, CreditCard, Bitcoin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { createRecharge } from "@/lib/api";
+
+const SUPABASE_URL = "https://ymcabvghfecbbbugkpow.supabase.co";
 
 const PRESET_AMOUNTS = [1, 5, 10, 15, 20];
 const MIN_CUSTOM_AMOUNT = 1;
@@ -27,12 +28,12 @@ const typeIcons: Record<string, React.ComponentType<{ className?: string }>> = {
 };
 
 interface RechargeRequestProps {
-  tokenId?: string;
+  tokenValue?: string; // TK-... value (not token id)
   onSuccess?: () => void;
   onTokenGenerated?: (token: string) => void;
 }
 
-export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: RechargeRequestProps) => {
+export const RechargeRequest = ({ tokenValue, onSuccess, onTokenGenerated }: RechargeRequestProps) => {
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null);
@@ -77,10 +78,6 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
     }
   };
 
-  const copyToken = (token: string) => {
-    navigator.clipboard.writeText(token);
-    toast.success("تم نسخ التوكن!");
-  };
 
   const handleSubmit = async () => {
     if (!selectedAmount || !proofImage || !selectedMethod) return;
@@ -111,29 +108,27 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
         console.log('Could not fetch IP');
       }
 
-      // Use Edge Function to create recharge
-      const result = await createRecharge({
-        token_value: tokenId ? undefined : undefined,
-        create_new_token: !tokenId,
-        amount: selectedAmount,
-        payment_method_id: selectedMethod.id,
-        proof_image_url: publicUrl,
-        sender_reference: senderReference.trim() || undefined,
-        user_ip: userIp || undefined
+      // Call Edge Function to create recharge
+      const isNewToken = !tokenValue?.trim();
+
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/create-recharge`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token_value: isNewToken ? undefined : tokenValue?.trim(),
+          create_new_token: isNewToken,
+          amount: selectedAmount,
+          payment_method_id: selectedMethod.id,
+          proof_image_url: publicUrl,
+          sender_reference: senderReference.trim() || null,
+          user_ip: isNewToken ? (userIp || null) : null,
+        }),
       });
 
-      // If we have a tokenId, pass it differently
-      const finalResult = tokenId ? await createRecharge({
-        token_value: undefined, // We need token value, not ID - this is a limitation
-        create_new_token: false,
-        amount: selectedAmount,
-        payment_method_id: selectedMethod.id,
-        proof_image_url: publicUrl,
-        sender_reference: senderReference.trim() || undefined,
-      }) : result;
+      const result = await response.json().catch(() => ({} as any));
 
-      if (!result.success) {
-        throw new Error(result.error);
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || 'فشل في إرسال طلب الشحن');
       }
 
       if (result.new_token) {
@@ -146,8 +141,8 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
       toast.success("تم إرسال الطلب!");
       onSuccess?.();
     } catch (error) {
-      console.error('Error:', error);
-      toast.error("حدث خطأ");
+      console.error('Recharge error:', error);
+      toast.error(error instanceof Error ? error.message : "حدث خطأ");
     } finally {
       setIsSubmitting(false);
     }
@@ -173,7 +168,10 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
               {generatedToken}
             </span>
             <button
-              onClick={() => copyToken(generatedToken)}
+              onClick={() => {
+                navigator.clipboard.writeText(generatedToken);
+                toast.success("تم نسخ التوكن!");
+              }}
               className="p-2 hover:bg-muted rounded-lg transition-colors"
             >
               <Copy className="w-5 h-5 text-muted-foreground" />
