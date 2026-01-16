@@ -14,6 +14,60 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_users: {
+        Row: {
+          can_manage_coupons: boolean
+          can_manage_orders: boolean
+          can_manage_payment_methods: boolean
+          can_manage_products: boolean
+          can_manage_recharges: boolean
+          can_manage_refunds: boolean
+          can_manage_stock: boolean
+          can_manage_tokens: boolean
+          can_manage_users: boolean
+          created_at: string
+          id: string
+          is_active: boolean
+          password: string
+          updated_at: string
+          username: string
+        }
+        Insert: {
+          can_manage_coupons?: boolean
+          can_manage_orders?: boolean
+          can_manage_payment_methods?: boolean
+          can_manage_products?: boolean
+          can_manage_recharges?: boolean
+          can_manage_refunds?: boolean
+          can_manage_stock?: boolean
+          can_manage_tokens?: boolean
+          can_manage_users?: boolean
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          password: string
+          updated_at?: string
+          username: string
+        }
+        Update: {
+          can_manage_coupons?: boolean
+          can_manage_orders?: boolean
+          can_manage_payment_methods?: boolean
+          can_manage_products?: boolean
+          can_manage_recharges?: boolean
+          can_manage_refunds?: boolean
+          can_manage_stock?: boolean
+          can_manage_tokens?: boolean
+          can_manage_users?: boolean
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          password?: string
+          updated_at?: string
+          username?: string
+        }
+        Relationships: []
+      }
       payment_methods: {
         Row: {
           account_name: string | null
