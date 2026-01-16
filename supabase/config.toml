@@ -9,3 +9,18 @@ verify_jwt = false
 
 [functions.get-order-status]
 verify_jwt = false
+
+[functions.create-order]
+verify_jwt = false
+
+[functions.create-recharge]
+verify_jwt = false
+
+[functions.create-refund]
+verify_jwt = false
+
+[functions.send-message]
+verify_jwt = false
+
+[functions.get-messages]
+verify_jwt = false
