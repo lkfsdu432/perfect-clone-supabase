@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Terminal, ChevronRight } from 'lucide-react';
 
@@ -14,23 +14,38 @@ export const NewsSection = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isTyping, setIsTyping] = useState(false);
   const [displayedText, setDisplayedText] = useState('');
-
-  useEffect(() => {
-    fetchNews();
-  }, []);
+  const latestIdRef = useRef<string | null>(null);
 
   const fetchNews = async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('news')
       .select('*')
       .eq('is_active', true)
       .order('created_at', { ascending: false })
       .limit(5);
 
-    if (data && data.length > 0) {
-      setNews(data);
+    if (error) {
+      console.error('Failed to fetch news:', error);
+      return;
     }
+
+    const items = (data || []) as News[];
+
+    // If a newer news item appeared, restart from the first item
+    const newestId = items[0]?.id ?? null;
+    if (newestId && newestId !== latestIdRef.current) {
+      latestIdRef.current = newestId;
+      setCurrentIndex(0);
+    }
+
+    setNews(items);
   };
+
+  useEffect(() => {
+    fetchNews();
+    const interval = window.setInterval(fetchNews, 15000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   // Typing effect
   useEffect(() => {
@@ -42,22 +57,27 @@ export const NewsSection = () => {
     setIsTyping(true);
     setDisplayedText('');
 
-    const typeInterval = setInterval(() => {
+    let nextTimeout: number | undefined;
+
+    const typeInterval = window.setInterval(() => {
       if (charIndex < fullText.length) {
         setDisplayedText(fullText.slice(0, charIndex + 1));
         charIndex++;
       } else {
         setIsTyping(false);
-        clearInterval(typeInterval);
-        
+        window.clearInterval(typeInterval);
+
         // Wait and move to next news
-        setTimeout(() => {
+        nextTimeout = window.setTimeout(() => {
           setCurrentIndex((prev) => (prev + 1) % news.length);
         }, 4000);
       }
     }, 30);
 
-    return () => clearInterval(typeInterval);
+    return () => {
+      window.clearInterval(typeInterval);
+      if (nextTimeout) window.clearTimeout(nextTimeout);
+    };
   }, [currentIndex, news]);
 
   if (news.length === 0) return null;
