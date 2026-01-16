@@ -4,8 +4,8 @@ import { Upload, Loader2, CheckCircle, Copy, Wallet, CreditCard, Bitcoin } from 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-const SUPABASE_URL = "https://ymcabvghfecbbbugkpow.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_yCJbSd21pHp6YsfEGdP4fg_eFqvd9im";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 const EDGE_HEADERS = {
   'Content-Type': 'application/json',
   apikey: SUPABASE_ANON_KEY,
