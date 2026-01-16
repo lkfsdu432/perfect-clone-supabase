@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,6 +28,10 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Tag, Loader2 } from "lucide-react";
+import { 
+  fetchCoupons, addCoupon, updateCoupon, deleteCoupon, 
+  fetchProducts 
+} from "@/lib/adminApi";
 
 interface Coupon {
   id: string;
@@ -36,11 +39,12 @@ interface Coupon {
   discount_type: string;
   discount_value: number;
   max_uses: number | null;
-  current_uses: number;
+  used_count: number;
   is_active: boolean;
   expires_at: string | null;
   created_at: string;
   product_id: string | null;
+  min_amount: number | null;
 }
 
 interface Product {
@@ -65,28 +69,28 @@ const CouponManagement = () => {
   const [productId, setProductId] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchCoupons();
-    fetchProducts();
+    loadData();
   }, []);
 
-  const fetchCoupons = async () => {
+  const loadData = async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from("coupons")
-      .select("*")
-      .order("created_at", { ascending: false });
+    try {
+      const [couponsRes, productsRes] = await Promise.all([
+        fetchCoupons(),
+        fetchProducts()
+      ]);
 
-    if (data) setCoupons(data);
-    setLoading(false);
-  };
-
-  const fetchProducts = async () => {
-    const { data } = await supabase
-      .from("products")
-      .select("id, name")
-      .order("name");
-
-    if (data) setProducts(data);
+      if (couponsRes.success) {
+        setCoupons(couponsRes.data?.coupons || []);
+      }
+      if (productsRes.success) {
+        setProducts(productsRes.data?.products || []);
+      }
+    } catch (error) {
+      console.error('Error loading data:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getProductName = (productId: string | null) => {
@@ -112,21 +116,16 @@ const CouponManagement = () => {
     };
 
     if (editingCoupon) {
-      const { error } = await supabase
-        .from("coupons")
-        .update(couponData)
-        .eq("id", editingCoupon.id);
-
-      if (error) {
+      const result = await updateCoupon(editingCoupon.id, couponData);
+      if (!result.success) {
         toast.error("حدث خطأ أثناء التحديث");
       } else {
         toast.success("تم تحديث الكوبون بنجاح");
       }
     } else {
-      const { error } = await supabase.from("coupons").insert(couponData);
-
-      if (error) {
-        if (error.code === "23505") {
+      const result = await addCoupon(couponData);
+      if (!result.success) {
+        if (result.error?.includes('23505')) {
           toast.error("هذا الكوبون موجود مسبقاً");
         } else {
           toast.error("حدث خطأ أثناء الإضافة");
@@ -138,19 +137,18 @@ const CouponManagement = () => {
 
     resetForm();
     setDialogOpen(false);
-    fetchCoupons();
+    loadData();
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm("هل أنت متأكد من حذف هذا الكوبون؟")) return;
 
-    const { error } = await supabase.from("coupons").delete().eq("id", id);
-
-    if (error) {
+    const result = await deleteCoupon(id);
+    if (!result.success) {
       toast.error("حدث خطأ أثناء الحذف");
     } else {
       toast.success("تم حذف الكوبون بنجاح");
-      fetchCoupons();
+      loadData();
     }
   };
 
@@ -277,7 +275,6 @@ const CouponManagement = () => {
                 </div>
               </div>
 
-              {/* حقل اختيار المنتج الجديد */}
               <div className="space-y-2">
                 <Label>مخصص لمنتج معين</Label>
                 <Select
@@ -341,7 +338,7 @@ const CouponManagement = () => {
                     </span>
                   </TableCell>
                   <TableCell>
-                    {coupon.current_uses} / {coupon.max_uses || "∞"}
+                    {coupon.used_count} / {coupon.max_uses || "∞"}
                   </TableCell>
                   <TableCell>
                     <span

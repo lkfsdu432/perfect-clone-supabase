@@ -12,8 +12,11 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Plus, Pencil, Trash2, Loader2, Wallet, CreditCard, Bitcoin, Eye, EyeOff, Power, DollarSign, Save } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import {
+  fetchPaymentMethods, addPaymentMethod, updatePaymentMethod, deletePaymentMethod,
+  fetchSettings, updateSetting
+} from "@/lib/adminApi";
 
 interface PaymentMethod {
   id: string;
@@ -54,26 +57,24 @@ export const PaymentMethodsManagement = () => {
     display_order: 0,
   });
 
-  const fetchMethods = async () => {
+  const loadData = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('payment_methods')
-        .select('*')
-        .order('display_order');
+      const [methodsRes, settingsRes] = await Promise.all([
+        fetchPaymentMethods(),
+        fetchSettings()
+      ]);
 
-      if (error) throw error;
-      setMethods((data || []) as PaymentMethod[]);
+      if (methodsRes.success) {
+        setMethods(methodsRes.data?.payment_methods || []);
+      }
 
-      // Fetch dollar rate
-      const { data: settings } = await supabase
-        .from('settings')
-        .select('value')
-        .eq('key', 'dollar_rate')
-        .maybeSingle();
-
-      if (settings?.value) {
-        setDollarRate(settings.value);
+      if (settingsRes.success) {
+        const settings = settingsRes.data?.settings || [];
+        const rate = settings.find((s: any) => s.key === 'dollar_rate');
+        if (rate?.value) {
+          setDollarRate(rate.value);
+        }
       }
     } catch (error) {
       console.error('Error:', error);
@@ -84,7 +85,7 @@ export const PaymentMethodsManagement = () => {
   };
 
   useEffect(() => {
-    fetchMethods();
+    loadData();
   }, []);
 
   const openAddDialog = () => {
@@ -125,47 +126,32 @@ export const PaymentMethodsManagement = () => {
 
     setSaving(true);
     try {
-      if (editingMethod) {
-        const { error } = await supabase
-          .from('payment_methods')
-          .update({
-            name: form.name,
-            type: form.type,
-            account_number: form.account_number || null,
-            account_name: form.account_name || null,
-            account_info: form.account_number || '',
-            instructions: form.instructions || null,
-            is_active: form.is_active,
-            is_visible: form.is_visible,
-            display_order: form.display_order,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', editingMethod.id);
+      const paymentData = {
+        name: form.name,
+        type: form.type,
+        account_number: form.account_number || null,
+        account_name: form.account_name || null,
+        account_info: form.account_number || '',
+        instructions: form.instructions || null,
+        is_active: form.is_active,
+        is_visible: form.is_visible,
+        display_order: form.display_order,
+        updated_at: new Date().toISOString(),
+      };
 
-        if (error) throw error;
+      if (editingMethod) {
+        const result = await updatePaymentMethod(editingMethod.id, paymentData);
+        if (!result.success) throw new Error(result.error);
         toast.success("تم التحديث");
       } else {
-        const { error } = await supabase
-          .from('payment_methods')
-          .insert({
-            name: form.name,
-            type: form.type,
-            account_number: form.account_number || null,
-            account_name: form.account_name || null,
-            account_info: form.account_number || '',
-            instructions: form.instructions || null,
-            is_active: form.is_active,
-            is_visible: form.is_visible,
-            display_order: form.display_order,
-          });
-
-        if (error) throw error;
+        const result = await addPaymentMethod(paymentData);
+        if (!result.success) throw new Error(result.error);
         toast.success("تمت الإضافة");
       }
 
       setShowDialog(false);
-      fetchMethods();
-    } catch (error) {
+      loadData();
+    } catch (error: any) {
       console.error('Error:', error);
       toast.error("حدث خطأ");
     } finally {
@@ -177,14 +163,10 @@ export const PaymentMethodsManagement = () => {
     if (!confirm("هل تريد حذف طريقة الدفع هذه؟")) return;
 
     try {
-      const { error } = await supabase
-        .from('payment_methods')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
+      const result = await deletePaymentMethod(id);
+      if (!result.success) throw new Error(result.error);
       toast.success("تم الحذف");
-      fetchMethods();
+      loadData();
     } catch (error) {
       console.error('Error:', error);
       toast.error("حدث خطأ");
@@ -193,13 +175,9 @@ export const PaymentMethodsManagement = () => {
 
   const toggleActive = async (method: PaymentMethod) => {
     try {
-      const { error } = await supabase
-        .from('payment_methods')
-        .update({ is_active: !method.is_active })
-        .eq('id', method.id);
-
-      if (error) throw error;
-      fetchMethods();
+      const result = await updatePaymentMethod(method.id, { is_active: !method.is_active });
+      if (!result.success) throw new Error(result.error);
+      loadData();
       toast.success(method.is_active ? "تم إيقاف التفعيل" : "تم التفعيل");
     } catch (error) {
       console.error('Error:', error);
@@ -209,17 +187,32 @@ export const PaymentMethodsManagement = () => {
 
   const toggleVisible = async (method: PaymentMethod) => {
     try {
-      const { error } = await supabase
-        .from('payment_methods')
-        .update({ is_visible: !(method.is_visible ?? true) })
-        .eq('id', method.id);
-
-      if (error) throw error;
-      fetchMethods();
+      const result = await updatePaymentMethod(method.id, { is_visible: !(method.is_visible ?? true) });
+      if (!result.success) throw new Error(result.error);
+      loadData();
       toast.success((method.is_visible ?? true) ? "تم إخفاء الطريقة" : "تم إظهار الطريقة");
     } catch (error) {
       console.error('Error:', error);
       toast.error("حدث خطأ");
+    }
+  };
+
+  const handleSaveRate = async () => {
+    if (!dollarRate || isNaN(Number(dollarRate))) {
+      toast.error("أدخل سعر صحيح");
+      return;
+    }
+
+    setSavingRate(true);
+    try {
+      const result = await updateSetting('dollar_rate', dollarRate);
+      if (!result.success) throw new Error(result.error);
+      toast.success("تم حفظ سعر الدولار");
+    } catch (error) {
+      console.error('Error:', error);
+      toast.error("حدث خطأ");
+    } finally {
+      setSavingRate(false);
     }
   };
 
@@ -230,50 +223,6 @@ export const PaymentMethodsManagement = () => {
       </div>
     );
   }
-
-  const handleSaveRate = async () => {
-    if (!dollarRate || isNaN(Number(dollarRate))) {
-      toast.error("أدخل سعر صحيح");
-      return;
-    }
-
-    setSavingRate(true);
-    try {
-      // Check if setting exists
-      const { data: existing } = await supabase
-        .from('settings')
-        .select('id')
-        .eq('key', 'dollar_rate')
-        .maybeSingle();
-
-      if (existing) {
-        const { error } = await supabase
-          .from('settings')
-          .update({
-            value: dollarRate,
-            updated_at: new Date().toISOString()
-          })
-          .eq('key', 'dollar_rate');
-
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('settings')
-          .insert({
-            key: 'dollar_rate',
-            value: dollarRate
-          });
-
-        if (error) throw error;
-      }
-      toast.success("تم حفظ سعر الدولار");
-    } catch (error) {
-      console.error('Error:', error);
-      toast.error("حدث خطأ");
-    } finally {
-      setSavingRate(false);
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -352,7 +301,6 @@ export const PaymentMethodsManagement = () => {
                   </div>
 
                   <div className="flex items-center gap-1 flex-shrink-0">
-                    {/* زر الإظهار/الإخفاء */}
                     <Button
                       variant="ghost"
                       size="icon"
@@ -363,7 +311,6 @@ export const PaymentMethodsManagement = () => {
                       {isVisible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                     </Button>
 
-                    {/* زر التفعيل/الإيقاف */}
                     <Button
                       variant="ghost"
                       size="icon"
@@ -374,12 +321,10 @@ export const PaymentMethodsManagement = () => {
                       <Power className="w-4 h-4" />
                     </Button>
 
-                    {/* زر التعديل */}
                     <Button variant="ghost" size="icon" onClick={() => openEditDialog(method)}>
                       <Pencil className="w-4 h-4" />
                     </Button>
 
-                    {/* زر الحذف */}
                     <Button variant="ghost" size="icon" onClick={() => handleDelete(method.id)}>
                       <Trash2 className="w-4 h-4 text-destructive" />
                     </Button>

@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Trash2, Edit2, Save, X, User, Shield, Eye, EyeOff, Settings, Check, Loader2 } from 'lucide-react';
+import { Plus, Trash2, User, Shield, Eye, EyeOff, Settings, Check, Loader2, X, Save } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import {
+  fetchAdminUsers, addAdminUser, updateAdminUser, deleteAdminUser
+} from '@/lib/adminApi';
 
 interface AdminUser {
   id: string;
   username: string;
-  password: string;
+  password?: string;
   is_active: boolean;
   can_manage_orders: boolean;
   can_manage_products: boolean;
@@ -38,7 +40,6 @@ export const AdminUsersManagement = () => {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
   const [savingPermissions, setSavingPermissions] = useState<string | null>(null);
@@ -50,20 +51,16 @@ export const AdminUsersManagement = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchUsers();
+    loadUsers();
   }, []);
 
-  const fetchUsers = async () => {
+  const loadUsers = async () => {
     setIsLoading(true);
-    const { data, error } = await supabase
-      .from('admin_users')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) {
+    const result = await fetchAdminUsers();
+    if (!result.success) {
       toast({ title: 'خطأ', description: 'فشل تحميل المستخدمين', variant: 'destructive' });
     } else {
-      setUsers(data || []);
+      setUsers(result.data?.admin_users || []);
     }
     setIsLoading(false);
   };
@@ -74,7 +71,6 @@ export const AdminUsersManagement = () => {
       password: '',
       is_active: true,
     });
-    setEditingUser(null);
     setShowPassword(false);
   };
 
@@ -91,75 +87,63 @@ export const AdminUsersManagement = () => {
       return;
     }
 
-    // إضافة مستخدم جديد (بدون صلاحيات - يحددها الأدمن لاحقاً)
-    const { error } = await supabase
-      .from('admin_users')
-      .insert({
-        username: form.username,
-        password: form.password,
-        is_active: form.is_active,
-        can_manage_orders: false,
-        can_manage_products: false,
-        can_manage_tokens: false,
-        can_manage_refunds: false,
-        can_manage_stock: false,
-        can_manage_coupons: false,
-        can_manage_recharges: false,
-        can_manage_payment_methods: false,
-        can_manage_users: false,
-      });
+    const result = await addAdminUser({
+      username: form.username,
+      password: form.password,
+      is_active: form.is_active,
+      can_manage_orders: false,
+      can_manage_products: false,
+      can_manage_tokens: false,
+      can_manage_refunds: false,
+      can_manage_stock: false,
+      can_manage_coupons: false,
+      can_manage_recharges: false,
+      can_manage_payment_methods: false,
+      can_manage_users: false,
+    });
 
-    if (error) {
-      if (error.code === '23505') {
+    if (!result.success) {
+      if (result.error?.includes('23505')) {
         toast({ title: 'خطأ', description: 'اسم المستخدم موجود مسبقاً', variant: 'destructive' });
       } else {
-        toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
+        toast({ title: 'خطأ', description: result.error || 'حدث خطأ', variant: 'destructive' });
       }
     } else {
       toast({ title: 'نجاح', description: 'تم إضافة المستخدم بنجاح - حدد صلاحياته الآن' });
       setShowModal(false);
       resetForm();
-      fetchUsers();
+      loadUsers();
     }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('هل أنت متأكد من حذف هذا المستخدم؟')) return;
 
-    const { error } = await supabase.from('admin_users').delete().eq('id', id);
-
-    if (error) {
-      toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
+    const result = await deleteAdminUser(id);
+    if (!result.success) {
+      toast({ title: 'خطأ', description: result.error || 'حدث خطأ', variant: 'destructive' });
     } else {
       toast({ title: 'نجاح', description: 'تم حذف المستخدم' });
-      fetchUsers();
+      loadUsers();
     }
   };
 
   const toggleActive = async (user: AdminUser) => {
-    const { error } = await supabase
-      .from('admin_users')
-      .update({ is_active: !user.is_active })
-      .eq('id', user.id);
-
-    if (error) {
-      toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
+    const result = await updateAdminUser(user.id, { is_active: !user.is_active });
+    if (!result.success) {
+      toast({ title: 'خطأ', description: result.error || 'حدث خطأ', variant: 'destructive' });
     } else {
       toast({ title: 'تم', description: user.is_active ? 'تم تعطيل المستخدم' : 'تم تفعيل المستخدم' });
-      fetchUsers();
+      loadUsers();
     }
   };
 
   const handlePermissionChange = async (userId: string, permKey: string, value: boolean) => {
     setSavingPermissions(userId);
 
-    const { error } = await supabase
-      .from('admin_users')
-      .update({ [permKey]: value })
-      .eq('id', userId);
-
-    if (error) {
-      toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
+    const result = await updateAdminUser(userId, { [permKey]: value });
+    if (!result.success) {
+      toast({ title: 'خطأ', description: result.error || 'حدث خطأ', variant: 'destructive' });
     } else {
       setUsers(prev => prev.map(u => 
         u.id === userId ? { ...u, [permKey]: value } : u
@@ -184,13 +168,9 @@ export const AdminUsersManagement = () => {
       can_manage_users: enable,
     };
 
-    const { error } = await supabase
-      .from('admin_users')
-      .update(allPermissions)
-      .eq('id', userId);
-
-    if (error) {
-      toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
+    const result = await updateAdminUser(userId, allPermissions);
+    if (!result.success) {
+      toast({ title: 'خطأ', description: result.error || 'حدث خطأ', variant: 'destructive' });
     } else {
       setUsers(prev => prev.map(u => 
         u.id === userId ? { ...u, ...allPermissions } : u
@@ -204,16 +184,12 @@ export const AdminUsersManagement = () => {
   const updatePassword = async (userId: string, newPassword: string) => {
     if (!newPassword) return;
 
-    const { error } = await supabase
-      .from('admin_users')
-      .update({ password: newPassword })
-      .eq('id', userId);
-
-    if (error) {
-      toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
+    const result = await updateAdminUser(userId, { password: newPassword });
+    if (!result.success) {
+      toast({ title: 'خطأ', description: result.error || 'حدث خطأ', variant: 'destructive' });
     } else {
       toast({ title: 'تم', description: 'تم تحديث كلمة المرور' });
-      fetchUsers();
+      loadUsers();
     }
   };
 

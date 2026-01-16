@@ -9,7 +9,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import useOrderNotification from '@/hooks/useOrderNotification';
 import OrderChat from '@/components/OrderChat';
-import { adminLogin, getAdminSession, adminLogout, adminAction, AdminData } from '@/lib/adminApi';
+import { adminLogin, getAdminSession, adminLogout, adminAction, AdminData, updateOrder, deleteOrder, updateToken, addToken, deleteToken, addProduct, updateProduct, deleteProduct, addProductOption, updateProductOption, deleteProductOption, addStock, updateRefund } from '@/lib/adminApi';
 
 import CouponManagement from '@/components/admin/CouponManagement';
 import { RechargeManagement } from '@/components/admin/RechargeManagement';
@@ -136,18 +136,15 @@ const [isDelivering, setIsDelivering] = useState(false);
 const handleDeliverData = async () => {
   setIsDelivering(true);
   try {
-    const { error } = await supabase
-      .from('orders')
-      .update({
-        delivered_email: deliveredEmail,
-        delivered_password: deliveredPassword,
-        admin_notes: adminNotes,
-        status: 'completed',
-        delivered_at: new Date().toISOString()
-      })
-      .eq('id', order.id);
+    const result = await updateOrder(order.id, {
+      delivered_email: deliveredEmail,
+      delivered_password: deliveredPassword,
+      admin_notes: adminNotes,
+      status: 'completed',
+      delivered_at: new Date().toISOString()
+    });
     
-    if (error) throw error;
+    if (!result.success) throw new Error(result.error);
     toast({ title: 'تم التسليم بنجاح!' });
     onUpdateStatus(order.id, 'completed', 'تم تسليم البيانات');
   } catch (err) {
@@ -1343,46 +1340,40 @@ const Admin = () => {
     }
 
     if (editingProduct) {
-      const { error } = await supabase
-        .from('products')
-        .update({
-          name: productForm.name,
-          price: productForm.price,
-          duration: productForm.duration || null,
-          available: productForm.available,
-          instant_delivery: productForm.instant_delivery
-        })
-        .eq('id', editingProduct.id);
+      const result = await updateProduct(editingProduct.id, {
+        name: productForm.name,
+        price: productForm.price,
+        duration: productForm.duration || null,
+        available: productForm.available,
+        instant_delivery: productForm.instant_delivery
+      });
 
-      if (error) {
-        toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
+      if (!result.success) {
+        toast({ title: 'خطأ', description: result.error, variant: 'destructive' });
       } else {
         toast({ title: 'تم', description: 'تم تحديث المنتج بنجاح' });
       }
     } else {
       // Create product first
-      const { data: newProduct, error: productError } = await supabase
-        .from('products')
-        .insert({
-          name: productForm.name,
-          price: productForm.price,
-          duration: productForm.duration || null,
-          available: productForm.available,
-          instant_delivery: productForm.instant_delivery
-        })
-        .select('id')
-        .single();
+      const productResult = await addProduct({
+        name: productForm.name,
+        price: productForm.price,
+        duration: productForm.duration || null,
+        available: productForm.available,
+        instant_delivery: productForm.instant_delivery
+      });
 
-      if (productError || !newProduct) {
-        toast({ title: 'خطأ', description: productError?.message || 'فشل في إضافة المنتج', variant: 'destructive' });
+      if (!productResult.success || !productResult.data?.product) {
+        toast({ title: 'خطأ', description: productResult.error || 'فشل في إضافة المنتج', variant: 'destructive' });
         return;
       }
+
+      const newProduct = productResult.data.product;
 
       // Add options if any
       if (newProductOptions.length > 0) {
         for (const opt of newProductOptions.filter(o => o.name.trim())) {
-          // Insert the option
-          const { data: insertedOption, error: optError } = await supabase.from('product_options').insert({
+          const optResult = await addProductOption({
             product_id: newProduct.id,
             name: opt.name,
             type: opt.delivery_type === 'auto' ? 'none' : opt.delivery_type === 'chat' ? 'chat' : (opt.input_type || 'email_password'),
@@ -1390,9 +1381,9 @@ const Admin = () => {
             estimated_time: opt.estimated_time || null,
             price: opt.price || 0,
             duration: opt.duration || null
-          }).select('id').single();
+          });
 
-          if (optError || !insertedOption) {
+          if (!optResult.success || !optResult.data?.option) {
             toast({ title: 'تحذير', description: 'فشل في إضافة بعض المنتجات', variant: 'destructive' });
             continue;
           }
@@ -1402,11 +1393,11 @@ const Admin = () => {
             const items = opt.stock_content.split('\n').filter(item => item.trim());
             if (items.length > 0) {
               const stockToInsert = items.map(content => ({
-                product_option_id: insertedOption.id,
+                product_option_id: optResult.data.option.id,
                 content: content.trim(),
                 is_sold: false
               }));
-              await supabase.from('stock_items').insert(stockToInsert);
+              await addStock(stockToInsert);
             }
           }
         }
@@ -1421,9 +1412,9 @@ const Admin = () => {
   };
 
   const handleDeleteProduct = async (id: string) => {
-    const { error } = await supabase.from('products').delete().eq('id', id);
-    if (error) {
-      toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
+    const result = await deleteProduct(id);
+    if (!result.success) {
+      toast({ title: 'خطأ', description: result.error, variant: 'destructive' });
     } else {
       toast({ title: 'تم', description: 'تم حذف المنتج' });
       fetchData();
@@ -1465,29 +1456,26 @@ const Admin = () => {
     const typeToSave = optionForm.delivery_type === 'auto' ? 'none' : optionForm.delivery_type === 'chat' ? 'chat' : optionForm.type;
 
     if (editingOption) {
-      const { error } = await supabase
-        .from('product_options')
-        .update({
-          name: optionForm.name,
-          type: typeToSave,
-          description: optionForm.description || null,
-          estimated_time: optionForm.estimated_time || null,
-          price: optionForm.price || 0,
-          duration: optionForm.duration || null,
-          is_active: optionForm.is_active,
-          purchase_limit: optionForm.purchase_limit > 0 ? optionForm.purchase_limit : null,
-          max_quantity_per_order: optionForm.max_quantity_per_order > 0 ? optionForm.max_quantity_per_order : null,
-          required_text_info: optionForm.required_text_info || null
-        })
-        .eq('id', editingOption.id);
+      const result = await updateProductOption(editingOption.id, {
+        name: optionForm.name,
+        type: typeToSave,
+        description: optionForm.description || null,
+        estimated_time: optionForm.estimated_time || null,
+        price: optionForm.price || 0,
+        duration: optionForm.duration || null,
+        is_active: optionForm.is_active,
+        purchase_limit: optionForm.purchase_limit > 0 ? optionForm.purchase_limit : null,
+        max_quantity_per_order: optionForm.max_quantity_per_order > 0 ? optionForm.max_quantity_per_order : null,
+        required_text_info: optionForm.required_text_info || null
+      });
 
-      if (error) {
-        toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
+      if (!result.success) {
+        toast({ title: 'خطأ', description: result.error, variant: 'destructive' });
       } else {
         toast({ title: 'تم', description: 'تم تحديث المنتج بنجاح' });
       }
     } else {
-      const { error } = await supabase.from('product_options').insert({
+      const result = await addProductOption({
         product_id: currentProductId,
         name: optionForm.name,
         type: typeToSave,
@@ -1501,8 +1489,8 @@ const Admin = () => {
         required_text_info: optionForm.required_text_info || null
       });
 
-      if (error) {
-        toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
+      if (!result.success) {
+        toast({ title: 'خطأ', description: result.error, variant: 'destructive' });
       } else {
         toast({ title: 'تم', description: 'تم إضافة المنتج بنجاح' });
       }
@@ -1513,9 +1501,9 @@ const Admin = () => {
   };
 
   const handleDeleteOption = async (id: string) => {
-    const { error } = await supabase.from('product_options').delete().eq('id', id);
-    if (error) {
-      toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
+    const result = await deleteProductOption(id);
+    if (!result.success) {
+      toast({ title: 'خطأ', description: result.error, variant: 'destructive' });
     } else {
       toast({ title: 'تم', description: 'تم حذف الخيار' });
       fetchData();
@@ -1541,24 +1529,21 @@ const Admin = () => {
     }
 
     if (editingToken) {
-      const { error } = await supabase
-        .from('tokens')
-        .update({ token: tokenForm.token, balance: tokenForm.balance })
-        .eq('id', editingToken.id);
+      const result = await updateToken(editingToken.id, { token: tokenForm.token, balance: tokenForm.balance });
 
-      if (error) {
-        toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
+      if (!result.success) {
+        toast({ title: 'خطأ', description: result.error, variant: 'destructive' });
       } else {
         toast({ title: 'تم', description: 'تم تحديث التوكن بنجاح' });
       }
     } else {
-      const { error } = await supabase.from('tokens').insert({
+      const result = await addToken({
         token: tokenForm.token,
         balance: tokenForm.balance
       });
 
-      if (error) {
-        toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
+      if (!result.success) {
+        toast({ title: 'خطأ', description: result.error, variant: 'destructive' });
       } else {
         toast({ title: 'تم', description: 'تم إضافة التوكن بنجاح' });
       }
@@ -1569,9 +1554,9 @@ const Admin = () => {
   };
 
   const handleDeleteToken = async (id: string) => {
-    const { error } = await supabase.from('tokens').delete().eq('id', id);
-    if (error) {
-      toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
+    const result = await deleteToken(id);
+    if (!result.success) {
+      toast({ title: 'خطأ', description: result.error, variant: 'destructive' });
     } else {
       toast({ title: 'تم', description: 'تم حذف التوكن' });
       fetchData();
@@ -1579,13 +1564,10 @@ const Admin = () => {
   };
 
   const handleToggleBlockToken = async (token: Token) => {
-    const { error } = await supabase
-      .from('tokens')
-      .update({ is_blocked: !token.is_blocked })
-      .eq('id', token.id);
+    const result = await updateToken(token.id, { is_blocked: !token.is_blocked });
 
-    if (error) {
-      toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
+    if (!result.success) {
+      toast({ title: 'خطأ', description: result.error, variant: 'destructive' });
     } else {
       toast({
         title: 'تم',
@@ -1599,28 +1581,16 @@ const Admin = () => {
   const handleUpdateOrderStatus = async (id: string, status: string, message?: string) => {
     // إذا كانت الحالة "مرفوض" أو "ملغي" - رد الفلوس للعميل أولاً
     if (status === 'rejected' || status === 'cancelled') {
-      // جلب بيانات الطلب
       const order = orders.find(o => o.id === id);
       if (order && order.token_id) {
-        // جلب رصيد التوكن الحالي
-        const { data: tokenData } = await supabase
-          .from('tokens')
-          .select('balance')
-          .eq('id', order.token_id)
-          .single();
-
-        if (tokenData) {
+        const token = tokens.find(t => t.id === order.token_id);
+        if (token) {
           const refundAmount = Number(order.amount) || Number(order.total_price) || 0;
-          const newBalance = Number(tokenData.balance) + refundAmount;
+          const newBalance = Number(token.balance) + refundAmount;
           
-          // تحديث رصيد التوكن
-          const { error: balanceError } = await supabase
-            .from('tokens')
-            .update({ balance: newBalance })
-            .eq('id', order.token_id);
-
-          if (balanceError) {
-            toast({ title: 'خطأ', description: 'فشل في رد الرصيد: ' + balanceError.message, variant: 'destructive' });
+          const balanceResult = await updateToken(order.token_id, { balance: newBalance });
+          if (!balanceResult.success) {
+            toast({ title: 'خطأ', description: 'فشل في رد الرصيد: ' + balanceResult.error, variant: 'destructive' });
             return;
           }
           
@@ -1629,13 +1599,10 @@ const Admin = () => {
       }
     }
 
-    const { error } = await supabase
-      .from('orders')
-      .update({ status, response_message: message || null })
-      .eq('id', id);
+    const result = await updateOrder(id, { status, response_message: message || null });
 
-    if (error) {
-      toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
+    if (!result.success) {
+      toast({ title: 'خطأ', description: result.error, variant: 'destructive' });
     } else {
       toast({ title: 'تم', description: 'تم تحديث حالة الطلب' });
       fetchData();
@@ -1644,9 +1611,9 @@ const Admin = () => {
   };
 
   const handleDeleteOrder = async (id: string) => {
-    const { error } = await supabase.from('orders').delete().eq('id', id);
-    if (error) {
-      toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
+    const result = await deleteOrder(id);
+    if (!result.success) {
+      toast({ title: 'خطأ', description: result.error, variant: 'destructive' });
     } else {
       toast({ title: 'تم', description: 'تم حذف الطلب' });
       fetchData();
@@ -1655,15 +1622,12 @@ const Admin = () => {
   };
 
   const handleRequestNewLink = async (orderId: string) => {
-    // Send a message to the customer requesting a new link
-    const { error } = await supabase.from('order_messages').insert({
-      order_id: orderId,
-      sender_type: 'admin',
-      message: '⚠️ الرابط المرسل غير صحيح أو منتهي الصلاحية. يرجى إرسال رابط جديد في الشات.'
-    });
+    // Send a message to the customer requesting a new link via adminApi
+    const { sendAdminMessage } = await import('@/lib/adminApi');
+    const result = await sendAdminMessage(orderId, '⚠️ الرابط المرسل غير صحيح أو منتهي الصلاحية. يرجى إرسال رابط جديد في الشات.');
 
-    if (error) {
-      toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
+    if (!result.success) {
+      toast({ title: 'خطأ', description: result.error, variant: 'destructive' });
     } else {
       toast({ title: 'تم', description: 'تم إرسال طلب رابط جديد للعميل' });
     }
@@ -1772,10 +1736,10 @@ const Admin = () => {
       is_sold: false
     }));
 
-    const { error } = await supabase.from('stock_items').insert(stockToInsert);
+    const result = await addStock(stockToInsert);
 
-    if (error) {
-      toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
+    if (!result.success) {
+      toast({ title: 'خطأ', description: result.error, variant: 'destructive' });
     } else {
       toast({ title: 'تم', description: `تم إضافة ${items.length} عنصر للمخزون` });
       setShowStockModal(false);
