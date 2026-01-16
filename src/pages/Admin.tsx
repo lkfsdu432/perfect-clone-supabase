@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import {
   Package, Key, ShoppingBag, LogOut, Plus, Trash2, Edit2, Save, X,
   ChevronDown, ChevronUp, Settings, Copy, Eye, EyeOff, Clock, CheckCircle2,
-  XCircle, Loader2, LayoutGrid, Zap, Database, Bell, BellOff, Volume2, VolumeX, TrendingUp, DollarSign, Users, MessageCircle, Link, RotateCcw, Ban, Ticket, Shield, CreditCard, Wallet, Newspaper, ShoppingCart
+  XCircle, Loader2, LayoutGrid, Zap, Database, Bell, BellOff, Volume2, VolumeX, TrendingUp, DollarSign, Users, MessageCircle, Link, RotateCcw, Ban, Ticket, Shield, CreditCard, Wallet, Newspaper, ShoppingCart, AlertTriangle, Power
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import useOrderNotification from '@/hooks/useOrderNotification';
@@ -861,13 +861,19 @@ const Admin = () => {
   const [currentStockProductId, setCurrentStockProductId] = useState<string | null>(null);
   const [currentStockOptionId, setCurrentStockOptionId] = useState<string | null>(null);
 
-  // Statistics state
+  // Maintenance mode state
+  const [maintenanceMode, setMaintenanceMode] = useState(false);
+  const [maintenanceMessage, setMaintenanceMessage] = useState('');
+  const [loadingMaintenance, setLoadingMaintenance] = useState(false);
+
+  // Statistics state - استخدام useRef لتخزين الإحصائيات بشكل ثابت
   const [todayStats, setTodayStats] = useState({
     totalEarnings: 0,
     totalOrders: 0,
     totalRecharges: 0,
     completedOrders: 0
   });
+  const statsLoadedRef = React.useRef(false);
 
   // Custom date range for stats
   const [statsStartDate, setStatsStartDate] = useState(() => {
@@ -1028,9 +1034,69 @@ const Admin = () => {
   useEffect(() => {
     if (!isLoading) {
       fetchData();
-      fetchTodayStats();
+      // جلب الإحصائيات مرة واحدة فقط عند التحميل الأول
+      if (!statsLoadedRef.current) {
+        fetchTodayStats();
+        fetchMaintenanceStatus();
+        statsLoadedRef.current = true;
+      }
     }
   }, [activeTab, isLoading]);
+
+  // جلب حالة الصيانة
+  const fetchMaintenanceStatus = async () => {
+    const { data } = await supabase
+      .from('site_settings')
+      .select('*')
+      .eq('key', 'maintenance_mode')
+      .maybeSingle();
+    
+    if (data) {
+      setMaintenanceMode(data.value === 'true');
+      setMaintenanceMessage(data.extra_data || '');
+    }
+  };
+
+  // تحديث حالة الصيانة
+  const toggleMaintenanceMode = async () => {
+    setLoadingMaintenance(true);
+    const newValue = !maintenanceMode;
+    
+    const { error } = await supabase
+      .from('site_settings')
+      .upsert({
+        key: 'maintenance_mode',
+        value: newValue ? 'true' : 'false',
+        extra_data: maintenanceMessage
+      }, { onConflict: 'key' });
+    
+    if (error) {
+      toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
+    } else {
+      setMaintenanceMode(newValue);
+      toast({ 
+        title: newValue ? 'تم تفعيل وضع الصيانة' : 'تم إيقاف وضع الصيانة',
+        description: newValue ? 'الموقع الآن تحت الصيانة' : 'الموقع متاح الآن للزوار'
+      });
+    }
+    setLoadingMaintenance(false);
+  };
+
+  const updateMaintenanceMessage = async () => {
+    const { error } = await supabase
+      .from('site_settings')
+      .upsert({
+        key: 'maintenance_mode',
+        value: maintenanceMode ? 'true' : 'false',
+        extra_data: maintenanceMessage
+      }, { onConflict: 'key' });
+    
+    if (error) {
+      toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
+    } else {
+      toast({ title: 'تم حفظ الرسالة' });
+    }
+  };
   // Real-time subscriptions للتحديث التلقائي
   useEffect(() => {
     if (isLoading) return;
@@ -1895,21 +1961,71 @@ const Admin = () => {
       </header>
 
       <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-6">
-        {/* Professional Tabs - Scrollable on mobile */}
-        <div className="bg-card/80 backdrop-blur-sm border border-border rounded-xl sm:rounded-2xl p-1 sm:p-1.5 mb-4 sm:mb-6 overflow-x-auto scrollbar-hide">
-          <div className="flex gap-0.5 sm:gap-1 min-w-max">
+        {/* Maintenance Mode Toggle */}
+        <div className="bg-card border border-border rounded-xl p-4 mb-4 sm:mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${maintenanceMode ? 'bg-warning/20 text-warning' : 'bg-success/20 text-success'}`}>
+                {maintenanceMode ? <AlertTriangle className="w-5 h-5" /> : <Power className="w-5 h-5" />}
+              </div>
+              <div>
+                <h3 className="font-semibold text-sm">وضع الصيانة</h3>
+                <p className="text-xs text-muted-foreground">
+                  {maintenanceMode ? 'الموقع مغلق للزوار حالياً' : 'الموقع متاح للجميع'}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <input
+                type="text"
+                placeholder="رسالة الصيانة (اختياري)"
+                value={maintenanceMessage}
+                onChange={(e) => setMaintenanceMessage(e.target.value)}
+                onBlur={updateMaintenanceMessage}
+                className="input-field text-sm py-2 w-full sm:w-64"
+              />
+              <button
+                onClick={toggleMaintenanceMode}
+                disabled={loadingMaintenance}
+                className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors flex items-center gap-2 whitespace-nowrap ${
+                  maintenanceMode 
+                    ? 'bg-success text-success-foreground hover:bg-success/90' 
+                    : 'bg-warning text-warning-foreground hover:bg-warning/90'
+                }`}
+              >
+                {loadingMaintenance ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : maintenanceMode ? (
+                  <>
+                    <Power className="w-4 h-4" />
+                    <span>تشغيل الموقع</span>
+                  </>
+                ) : (
+                  <>
+                    <AlertTriangle className="w-4 h-4" />
+                    <span>تفعيل الصيانة</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Professional Tabs - With Labels */}
+        <div className="bg-card/80 backdrop-blur-sm border border-border rounded-xl sm:rounded-2xl p-1.5 sm:p-2 mb-4 sm:mb-6 overflow-x-auto scrollbar-hide">
+          <div className="flex gap-1 sm:gap-2 min-w-max">
             {[
               { id: 'orders', label: 'الطلبات', icon: ShoppingBag, count: orders.length, permission: 'can_manage_orders' },
-              { id: 'recharges', label: 'الشحن', icon: CreditCard, count: null, permission: 'can_manage_tokens' },
+              { id: 'recharges', label: 'طلبات الشحن', icon: CreditCard, count: null, permission: 'can_manage_tokens' },
               { id: 'products', label: 'الأقسام', icon: Package, count: products.length, permission: 'can_manage_products' },
               { id: 'stock', label: 'المخزون', icon: Database, count: null, permission: 'can_manage_stock' },
               { id: 'tokens', label: 'التوكنات', icon: Key, count: tokens.length, permission: 'can_manage_tokens' },
-              { id: 'token_log', label: 'السجل', icon: Database, count: null, permission: 'can_manage_tokens' },
-              { id: 'refunds', label: 'الاسترداد', icon: RotateCcw, count: refundRequests.filter(r => r.status === 'pending').length, permission: 'can_manage_refunds' },
-              { id: 'payment_methods', label: 'الدفع', icon: Wallet, count: null, permission: 'can_manage_tokens' },
-              { id: 'coupons', label: 'كوبونات', icon: Ticket, count: null, permission: 'can_manage_coupons' },
-              { id: 'news', label: 'أخبار', icon: Newspaper, count: null, permission: 'can_manage_products' },
-              { id: 'admin_users', label: 'مدراء', icon: Users, count: null, permission: 'can_manage_users' },
+              { id: 'token_log', label: 'سجل التوكنات', icon: Database, count: null, permission: 'can_manage_tokens' },
+              { id: 'refunds', label: 'طلبات الاسترداد', icon: RotateCcw, count: refundRequests.filter(r => r.status === 'pending').length, permission: 'can_manage_refunds' },
+              { id: 'payment_methods', label: 'طرق الدفع', icon: Wallet, count: null, permission: 'can_manage_tokens' },
+              { id: 'coupons', label: 'الكوبونات', icon: Ticket, count: null, permission: 'can_manage_coupons' },
+              { id: 'news', label: 'الأخبار', icon: Newspaper, count: null, permission: 'can_manage_products' },
+              { id: 'admin_users', label: 'المدراء', icon: Users, count: null, permission: 'can_manage_users' },
             ].filter(tab => isAdmin || (userPermissions && userPermissions[tab.permission as keyof UserPermissions])).map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -1917,14 +2033,14 @@ const Admin = () => {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as 'products' | 'tokens' | 'orders' | 'refunds' | 'users' | 'coupons' | 'recharges' | 'payment_methods' | 'admin_users' | 'news' | 'token_log' | 'stock')}
-                  className={`relative flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
+                  className={`relative flex flex-col sm:flex-row items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
                     isActive
                       ? 'bg-primary text-primary-foreground shadow-md'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
                   }`}
                 >
-                  <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                  <span className="hidden xs:inline">{tab.label}</span>
+                  <Icon className="w-4 h-4 sm:w-4 sm:h-4" />
+                  <span className="text-[10px] sm:text-sm">{tab.label}</span>
                   {tab.count !== null && tab.count > 0 && (
                     <span className={`min-w-4 h-4 sm:min-w-5 sm:h-5 flex items-center justify-center px-1 sm:px-1.5 rounded-full text-[10px] sm:text-xs font-bold ${
                       isActive 
