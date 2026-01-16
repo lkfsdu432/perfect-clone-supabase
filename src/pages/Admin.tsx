@@ -1416,7 +1416,11 @@ const Admin = () => {
     if (!result.success) {
       toast({ title: 'خطأ', description: result.error, variant: 'destructive' });
     } else {
-      toast({ title: 'تم', description: 'تم حذف المنتج' });
+      const softDeleted = (result as any).soft_deleted;
+      toast({
+        title: 'تم',
+        description: softDeleted ? 'لا يمكن حذف المنتج لأنه مرتبط بطلبات سابقة — تم تعطيله بدل الحذف.' : 'تم حذف المنتج'
+      });
       fetchData();
     }
   };
@@ -1505,7 +1509,11 @@ const Admin = () => {
     if (!result.success) {
       toast({ title: 'خطأ', description: result.error, variant: 'destructive' });
     } else {
-      toast({ title: 'تم', description: 'تم حذف الخيار' });
+      const softDeleted = (result as any).soft_deleted;
+      toast({
+        title: 'تم',
+        description: softDeleted ? 'لا يمكن حذف الخيار لأنه مرتبط بطلبات/مخزون — تم تعطيله بدل الحذف.' : 'تم حذف الخيار'
+      });
       fetchData();
     }
   };

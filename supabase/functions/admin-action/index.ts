@@ -390,12 +390,32 @@ Deno.serve(async (req) => {
             { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
-        const { error: deleteProductError } = await supabase
-          .from('products')
-          .delete()
-          .eq('id', payload.product_id);
-        if (deleteProductError) throw deleteProductError;
-        result = { success: true };
+
+        // Try hard-delete first; if constrained by existing orders, soft-delete (deactivate)
+        {
+          const { error: deleteProductError } = await supabase
+            .from('products')
+            .delete()
+            .eq('id', payload.product_id);
+
+          if (deleteProductError) {
+            const code = (deleteProductError as any)?.code;
+            if (code === '23503') {
+              const { error: softDeleteError } = await supabase
+                .from('products')
+                .update({ is_active: false, updated_at: new Date().toISOString() })
+                .eq('id', payload.product_id);
+
+              if (softDeleteError) throw softDeleteError;
+              result = { success: true, soft_deleted: true };
+              break;
+            }
+
+            throw deleteProductError;
+          }
+
+          result = { success: true, deleted: true };
+        }
         break;
 
       // ========== PRODUCT OPTIONS ACTIONS ==========
@@ -437,12 +457,32 @@ Deno.serve(async (req) => {
             { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
-        const { error: deleteOptionError } = await supabase
-          .from('product_options')
-          .delete()
-          .eq('id', payload.option_id);
-        if (deleteOptionError) throw deleteOptionError;
-        result = { success: true };
+
+        // Try hard-delete first; if constrained by existing orders/stock, soft-delete (deactivate)
+        {
+          const { error: deleteOptionError } = await supabase
+            .from('product_options')
+            .delete()
+            .eq('id', payload.option_id);
+
+          if (deleteOptionError) {
+            const code = (deleteOptionError as any)?.code;
+            if (code === '23503') {
+              const { error: softDeleteError } = await supabase
+                .from('product_options')
+                .update({ is_active: false, updated_at: new Date().toISOString() })
+                .eq('id', payload.option_id);
+
+              if (softDeleteError) throw softDeleteError;
+              result = { success: true, soft_deleted: true };
+              break;
+            }
+
+            throw deleteOptionError;
+          }
+
+          result = { success: true, deleted: true };
+        }
         break;
 
       // ========== PAYMENT METHODS ACTIONS ==========
