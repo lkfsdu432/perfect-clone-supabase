@@ -5,6 +5,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 const SUPABASE_URL = "https://ymcabvghfecbbbugkpow.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_yCJbSd21pHp6YsfEGdP4fg_eFqvd9im";
+const EDGE_HEADERS = {
+  'Content-Type': 'application/json',
+  apikey: SUPABASE_ANON_KEY,
+  Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+} as const;
 
 const PRESET_AMOUNTS = [1, 5, 10, 15, 20];
 const MIN_CUSTOM_AMOUNT = 1;
@@ -113,7 +119,7 @@ export const RechargeRequest = ({ tokenValue, onSuccess, onTokenGenerated }: Rec
 
       const response = await fetch(`${SUPABASE_URL}/functions/v1/create-recharge`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: EDGE_HEADERS,
         body: JSON.stringify({
           token_value: isNewToken ? undefined : tokenValue?.trim(),
           create_new_token: isNewToken,
