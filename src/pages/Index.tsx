@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import Header from '@/components/Header';
 import NewsSection from '@/components/NewsSection';
-import MaintenancePage from '@/components/MaintenancePage';
 import { supabase } from '@/integrations/supabase/client';
 import { ShoppingCart, Search, CheckCircle, AlertCircle, Loader2, Clock, XCircle, CheckCircle2, Copy, MessageCircle, Ticket, Ban, CreditCard, RotateCcw, Download } from 'lucide-react';
 import {
@@ -123,8 +122,6 @@ const Index = () => {
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount_type: 'percentage' | 'fixed'; discount_value: number } | null>(null);
   const [couponLoading, setCouponLoading] = useState(false);
   const [purchaseLimitError, setPurchaseLimitError] = useState<string | null>(null);
-  const [isMaintenanceMode, setIsMaintenanceMode] = useState(false);
-  const [maintenanceMessage, setMaintenanceMessage] = useState('');
   
   const { toast } = useToast();
   const { fingerprint, getFingerprint } = useDeviceFingerprint();
@@ -188,22 +185,7 @@ const Index = () => {
 
     checkActiveOrder();
     fetchProducts();
-    checkMaintenanceMode();
   }, []);
-
-  // Check maintenance mode
-  const checkMaintenanceMode = async () => {
-    const { data } = await supabase
-      .from('site_settings')
-      .select('*')
-      .eq('key', 'maintenance_mode')
-      .maybeSingle();
-    
-    if (data && data.value === 'true') {
-      setIsMaintenanceMode(true);
-      setMaintenanceMessage(data.extra_data || '');
-    }
-  };
 
   // Subscribe to active order updates
   useEffect(() => {
@@ -1169,11 +1151,6 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
         <Loader2 className="w-8 h-8 text-primary animate-spin" />
       </div>
     );
-  }
-
-  // Show maintenance page if enabled (but allow access if admin is logged in)
-  if (isMaintenanceMode) {
-    return <MaintenancePage message={maintenanceMessage} />;
   }
 
   // Get active order product info
