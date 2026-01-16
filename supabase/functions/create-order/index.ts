@@ -75,36 +75,22 @@ Deno.serve(async (req) => {
     // Get product option
     const { data: optionData, error: optionError } = await supabase
       .from('product_options')
-      .select('id, product_id, name, price, type, is_active, purchase_limit')
+      .select('id, product_id, name, price, is_active, requires_email, requires_password, requires_verification_link, requires_text_input')
       .eq('id', product_option_id)
       .eq('product_id', product_id)
       .maybeSingle();
 
     if (optionError || !optionData || !optionData.is_active) {
+      console.error('Product option error:', optionError, 'Data:', optionData);
       return new Response(
         JSON.stringify({ error: 'Invalid product option' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    
+    // Determine option type based on requirements
+    const isAutoDelivery = !optionData.requires_email && !optionData.requires_password && !optionData.requires_verification_link && !optionData.requires_text_input;
 
-    // Check device purchase limit
-    if (optionData.purchase_limit && optionData.purchase_limit > 0 && device_fingerprint) {
-      const { data: purchaseData } = await supabase
-        .from('device_purchases')
-        .select('quantity')
-        .eq('device_fingerprint', device_fingerprint)
-        .eq('product_option_id', product_option_id);
-
-      const totalPurchased = (purchaseData || []).reduce((sum, p) => sum + (p.quantity || 1), 0);
-      if (totalPurchased + quantity > optionData.purchase_limit) {
-        return new Response(
-          JSON.stringify({ error: 'Purchase limit exceeded', limit: optionData.purchase_limit, purchased: totalPurchased }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-    }
-
-    const isAutoDelivery = optionData.type === 'none' || !optionData.type;
     let basePrice = Number(optionData.price) * (isAutoDelivery ? quantity : 1);
     let discountAmount = 0;
     let appliedCouponCode = null;
@@ -181,18 +167,19 @@ Deno.serve(async (req) => {
       discount_amount: discountAmount,
       coupon_code: appliedCouponCode,
       status: isAutoDelivery ? 'completed' : 'pending',
+      device_fingerprint: device_fingerprint || null,
     };
 
     if (isAutoDelivery) {
       orderData.response_message = stockContent;
       orderData.stock_content = stockContent;
-    } else if (optionData.type === 'email_password') {
-      orderData.email = email;
-      orderData.password = password;
-    } else if (optionData.type === 'link') {
+    } else if (optionData.requires_email && optionData.requires_password) {
+      orderData.delivered_email = email;
+      orderData.delivered_password = password;
+    } else if (optionData.requires_verification_link) {
       orderData.verification_link = verification_link;
-    } else if (optionData.type === 'text') {
-      orderData.verification_link = text_input;
+    } else if (optionData.requires_text_input) {
+      orderData.text_input = text_input;
     }
 
     const { data: newOrder, error: orderError } = await supabase
@@ -202,6 +189,7 @@ Deno.serve(async (req) => {
       .single();
 
     if (orderError || !newOrder) {
+      console.error('Order creation error:', orderError);
       return new Response(
         JSON.stringify({ error: 'Failed to create order' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -243,8 +231,8 @@ Deno.serve(async (req) => {
       .update({ balance: newBalance })
       .eq('id', tokenData.id);
 
-    // Record device purchase
-    if (device_fingerprint && optionData.purchase_limit && optionData.purchase_limit > 0) {
+    // Record device purchase for tracking
+    if (device_fingerprint) {
       await supabase.from('device_purchases').insert({
         device_fingerprint: device_fingerprint,
         product_option_id: product_option_id,
