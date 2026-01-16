@@ -690,44 +690,46 @@ const Admin = () => {
   }, [newOrdersCount]);
 
   const checkAuth = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
+    const sessionStr = localStorage.getItem('admin_session');
     
-    if (!session) {
+    if (!sessionStr) {
       navigate('/admin/login');
       return;
     }
 
-    const { data: adminData, error } = await supabase
-      .from('admin_auth')
-      .select('*')
-      .eq('user_id', session.user.id)
-      .maybeSingle();
+    try {
+      const adminData = JSON.parse(sessionStr);
+      
+      if (!adminData?.id) {
+        localStorage.removeItem('admin_session');
+        navigate('/admin/login');
+        return;
+      }
 
-    if (error || !adminData) {
-      await supabase.auth.signOut();
+      const permissions = adminData.permissions || {};
+      const perms: UserPermissions = {
+        can_manage_orders: permissions.can_manage_orders || permissions.is_super_admin || false,
+        can_manage_products: permissions.can_manage_products || permissions.is_super_admin || false,
+        can_manage_tokens: permissions.can_manage_tokens || permissions.is_super_admin || false,
+        can_manage_refunds: permissions.can_manage_refunds || permissions.is_super_admin || false,
+        can_manage_stock: permissions.can_manage_stock || permissions.is_super_admin || false,
+        can_manage_coupons: permissions.can_manage_coupons || permissions.is_super_admin || false,
+        can_manage_users: permissions.can_manage_users || permissions.is_super_admin || false,
+        can_manage_recharges: permissions.can_manage_recharges || permissions.is_super_admin || false,
+        can_manage_payment_methods: permissions.can_manage_payment_methods || permissions.is_super_admin || false,
+      };
+      
+      setUserPermissions(perms);
+
+      if (perms.can_manage_orders) setActiveTab('orders');
+      else if (perms.can_manage_products) setActiveTab('products');
+      else if (perms.can_manage_tokens) setActiveTab('tokens');
+      
+      setIsLoading(false);
+    } catch {
+      localStorage.removeItem('admin_session');
       navigate('/admin/login');
-      return;
     }
-
-    const perms: UserPermissions = {
-      can_manage_orders: adminData.can_manage_orders || adminData.is_super_admin,
-      can_manage_products: adminData.can_manage_products || adminData.is_super_admin,
-      can_manage_tokens: adminData.can_manage_tokens || adminData.is_super_admin,
-      can_manage_refunds: adminData.can_manage_refunds || adminData.is_super_admin,
-      can_manage_stock: adminData.can_manage_stock || adminData.is_super_admin,
-      can_manage_coupons: adminData.can_manage_coupons || adminData.is_super_admin,
-      can_manage_users: adminData.can_manage_users || adminData.is_super_admin,
-      can_manage_recharges: adminData.can_manage_recharges || adminData.is_super_admin,
-      can_manage_payment_methods: adminData.can_manage_payment_methods || adminData.is_super_admin,
-    };
-    
-    setUserPermissions(perms);
-
-    if (perms.can_manage_orders) setActiveTab('orders');
-    else if (perms.can_manage_products) setActiveTab('products');
-    else if (perms.can_manage_tokens) setActiveTab('tokens');
-    
-    setIsLoading(false);
   };
 
   const fetchData = async () => {
