@@ -1078,20 +1078,20 @@ if (refreshed) {
 };
 
     const ordersChannel = supabase
-      .channel(`token-orders-${tokenData.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'orders',
-          filter: `token_id=eq.${tokenData.id}`,
-        },
-        () => {
-          refetchOrders();
-        }
-      )
-      .subscribe();
+  .channel(`token-orders-${tokenData.id}`)
+  .on(
+    'postgres_changes',
+    {
+      event: '*',
+      schema: 'public',
+      table: 'orders',
+      filter: `token_id=eq.${tokenData.id}`,
+    },
+    (payload) => {
+      // ... your handler
+    }
+  )
+  .subscribe();
 
     const tokenChannel = supabase
       .channel(`token-balance-${tokenData.id}`)
