@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
     // Get product option
     const { data: optionData, error: optionError } = await supabase
       .from('product_options')
-      .select('id, product_id, name, price, is_active, requires_email, requires_password, requires_verification_link, requires_text_input')
+      .select('id, product_id, name, price, is_active, type, requires_email, requires_password, requires_verification_link, requires_text_input')
       .eq('id', product_option_id)
       .eq('product_id', product_id)
       .maybeSingle();
@@ -88,8 +88,10 @@ Deno.serve(async (req) => {
       );
     }
     
-    // Determine option type based on requirements
-    const isAutoDelivery = !optionData.requires_email && !optionData.requires_password && !optionData.requires_verification_link && !optionData.requires_text_input;
+    // Determine option type - use type field primarily, fallback to requires_* flags
+    // Types: 'auto' = auto delivery from stock, 'email_password' = manual, 'none' = no requirements (auto), etc.
+    const optionType = optionData.type || 'email_password';
+    const isAutoDelivery = optionType === 'auto' || optionType === 'none';
 
     let basePrice = Number(optionData.price) * (isAutoDelivery ? quantity : 1);
     let discountAmount = 0;
