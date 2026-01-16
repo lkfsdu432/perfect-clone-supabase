@@ -10,8 +10,8 @@ import {
 import { RechargeRequest, getSavedToken, saveToken } from '@/components/RechargeRequest';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { verifyToken } from '@/lib/api';
 
 const Header = () => {
   const [showRechargeDialog, setShowRechargeDialog] = useState(false);
@@ -39,18 +39,13 @@ const Header = () => {
     }
     setIsVerifying(true);
     try {
-      const { data, error } = await supabase
-        .from('tokens')
-        .select('id')
-        .eq('token', rechargeToken.trim())
-        .maybeSingle();
+      const data = await verifyToken(rechargeToken.trim());
 
-      if (error) throw error;
       if (!data) {
         toast.error('التوكن غير موجود');
         return;
       }
-      setTokenData(data);
+      setTokenData({ id: data.id });
       // حفظ التوكن في localStorage
       saveToken(rechargeToken.trim());
     } catch (error) {
