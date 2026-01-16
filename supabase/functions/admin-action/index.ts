@@ -62,10 +62,25 @@ Deno.serve(async (req) => {
         break;
 
       case 'fetch_recharges':
-        const { data: recharges } = await supabase
+        const { data: rechargesRaw } = await supabase
           .from('recharge_requests')
           .select('*')
           .order('created_at', { ascending: false });
+        
+        // Enrich with token data
+        const recharges = [];
+        for (const r of rechargesRaw || []) {
+          const { data: tokenData } = await supabase
+            .from('tokens')
+            .select('token, balance')
+            .eq('id', r.token_id)
+            .maybeSingle();
+          recharges.push({
+            ...r,
+            token_value: tokenData?.token || null,
+            token_balance: tokenData?.balance || 0
+          });
+        }
         result = { recharges };
         break;
 

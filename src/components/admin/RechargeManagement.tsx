@@ -22,7 +22,7 @@ import {
   Hash,
   RefreshCw,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { fetchRecharges, updateRecharge, updateToken, adminAction } from "@/lib/adminApi";
 import { toast } from "sonner";
 
 interface RechargeRequest {
@@ -31,7 +31,7 @@ interface RechargeRequest {
   amount: number;
   payment_method: string | null;
   proof_image_url: string | null;
-  payment_proof: string | null;
+  payment_proof_url: string | null;
   sender_name: string | null;
   sender_phone: string | null;
   transaction_reference: string | null;
@@ -39,10 +39,8 @@ interface RechargeRequest {
   status: string;
   admin_note: string | null;
   created_at: string;
-  tokens?: {
-    token: string;
-    balance: number;
-  };
+  token_value?: string;
+  token_balance?: number;
 }
 
 export const RechargeManagement = () => {
@@ -59,22 +57,20 @@ export const RechargeManagement = () => {
   const fetchRequests = async () => {
     setLoading(true);
     try {
-      let query = supabase
-        .from('recharge_requests')
-        .select(`
-          *,
-          tokens (token, balance)
-        `)
-        .order('created_at', { ascending: false });
-
-      if (filter !== 'all') {
-        query = query.eq('status', filter);
+      const result = await fetchRecharges();
+      
+      if (!result.success) {
+        throw new Error(result.error);
       }
 
-      const { data, error } = await query;
+      let recharges = result.data?.recharges || [];
+      
+      // Filter by status if needed
+      if (filter !== 'all') {
+        recharges = recharges.filter((r: any) => r.status === filter);
+      }
 
-      if (error) throw error;
-      setRequests((data || []) as RechargeRequest[]);
+      setRequests(recharges as RechargeRequest[]);
     } catch (error) {
       console.error('Error fetching recharge requests:', error);
       toast.error("خطأ في جلب طلبات الشحن");
@@ -93,29 +89,22 @@ export const RechargeManagement = () => {
 
     try {
       if (actionType === 'approve') {
-        // Update token balance
-        const currentBalance = selectedRequest.tokens?.balance || 0;
+        // Update token balance via admin API
+        const currentBalance = selectedRequest.token_balance || 0;
         const newBalance = currentBalance + selectedRequest.amount;
 
-        const { error: tokenError } = await supabase
-          .from('tokens')
-          .update({ balance: newBalance })
-          .eq('id', selectedRequest.token_id);
-
-        if (tokenError) throw tokenError;
+        const tokenResult = await updateToken(selectedRequest.token_id, { balance: newBalance });
+        if (!tokenResult.success) throw new Error(tokenResult.error);
       }
 
-      // Update request status
-      const { error: requestError } = await supabase
-        .from('recharge_requests')
-        .update({
-          status: actionType === 'approve' ? 'approved' : 'rejected',
-          admin_note: adminNote || null,
-          processed_at: new Date().toISOString(),
-        })
-        .eq('id', selectedRequest.id);
+      // Update request status via admin API
+      const rechargeResult = await updateRecharge(selectedRequest.id, {
+        status: actionType === 'approve' ? 'approved' : 'rejected',
+        admin_note: adminNote || null,
+        processed_at: new Date().toISOString(),
+      });
 
-      if (requestError) throw requestError;
+      if (!rechargeResult.success) throw new Error(rechargeResult.error);
 
       toast.success(
         actionType === 'approve'
@@ -159,7 +148,7 @@ export const RechargeManagement = () => {
   };
 
   const getProofImage = (request: RechargeRequest) => {
-    return request.proof_image_url || request.payment_proof;
+    return request.proof_image_url || request.payment_proof_url;
   };
 
   return (
@@ -228,7 +217,7 @@ export const RechargeManagement = () => {
                         </div>
                         <div className="text-sm text-muted-foreground flex items-center gap-1">
                           <span>التوكن:</span>
-                          <span className="font-mono" dir="ltr">{request.tokens?.token}</span>
+                          <span className="font-mono" dir="ltr">{request.token_value || request.token_id?.substring(0, 8)}</span>
                         </div>
                       </div>
                       {getStatusBadge(request.status)}
