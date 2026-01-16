@@ -8,8 +8,8 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import useOrderNotification from '@/hooks/useOrderNotification';
-import useAdminAuth from '@/hooks/useAdminAuth';
 import OrderChat from '@/components/OrderChat';
+import { adminLogin, getAdminSession, adminLogout, adminAction, AdminData } from '@/lib/adminApi';
 
 import CouponManagement from '@/components/admin/CouponManagement';
 import { RechargeManagement } from '@/components/admin/RechargeManagement';
@@ -827,11 +827,13 @@ const Admin = () => {
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [adminSession, setAdminSession] = useState<AdminData | null>(null);
   const [userPermissions, setUserPermissions] = useState<UserPermissions | null>(null);
   const [needsLogin, setNeedsLogin] = useState(false);
-  const [loginEmail, setLoginEmail] = useState('');
+  const [loginUsername, setLoginUsername] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
+  const [loginError, setLoginError] = useState('');
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -1177,133 +1179,124 @@ const Admin = () => {
   }, [isLoading]);
 
   const checkAuth = async () => {
-    // استخدام Supabase Auth للتحقق
-    const { data: { session } } = await supabase.auth.getSession();
+    // Check for stored admin session (Edge Function based)
+    const storedAdmin = getAdminSession();
     
-    if (!session) {
-      setNeedsLogin(true);
+    if (storedAdmin) {
+      setAdminSession(storedAdmin);
+      setIsAdmin(true);
+      setNeedsLogin(false);
+      setUserPermissions({
+        can_manage_orders: storedAdmin.permissions.can_manage_orders,
+        can_manage_products: storedAdmin.permissions.can_manage_products,
+        can_manage_tokens: storedAdmin.permissions.can_manage_tokens,
+        can_manage_refunds: storedAdmin.permissions.can_manage_refunds,
+        can_manage_stock: storedAdmin.permissions.can_manage_stock,
+        can_manage_coupons: storedAdmin.permissions.can_manage_coupons,
+        can_manage_users: storedAdmin.permissions.can_manage_users,
+      });
+      
+      // Set default tab based on permissions
+      if (storedAdmin.permissions.can_manage_orders) setActiveTab('orders');
+      else if (storedAdmin.permissions.can_manage_products) setActiveTab('products');
+      else if (storedAdmin.permissions.can_manage_tokens) setActiveTab('tokens');
+      else if (storedAdmin.permissions.can_manage_refunds) setActiveTab('refunds');
+      else if (storedAdmin.permissions.can_manage_coupons) setActiveTab('coupons');
+      
       setIsLoading(false);
       return;
     }
-
-    // التحقق من صلاحيات الأدمن
-    const { data: adminData, error } = await supabase
-      .from('admin_auth')
-      .select('*')
-      .eq('user_id', session.user.id)
-      .maybeSingle();
-
-    if (error || !adminData) {
-      await supabase.auth.signOut();
-      setNeedsLogin(true);
-      setIsLoading(false);
-      return;
-    }
-
-    setIsAdmin(true);
-    setNeedsLogin(false);
-    setUserPermissions({
-      can_manage_orders: adminData.can_manage_orders || adminData.is_super_admin,
-      can_manage_products: adminData.can_manage_products || adminData.is_super_admin,
-      can_manage_tokens: adminData.can_manage_tokens || adminData.is_super_admin,
-      can_manage_refunds: adminData.can_manage_refunds || adminData.is_super_admin,
-      can_manage_stock: adminData.can_manage_stock || adminData.is_super_admin,
-      can_manage_coupons: adminData.can_manage_coupons || adminData.is_super_admin,
-      can_manage_users: adminData.can_manage_users || adminData.is_super_admin,
-    });
     
-    // تحديد التاب الافتراضي
-    if (adminData.can_manage_orders || adminData.is_super_admin) setActiveTab('orders');
-    else if (adminData.can_manage_products) setActiveTab('products');
-    else if (adminData.can_manage_tokens) setActiveTab('tokens');
-    else if (adminData.can_manage_refunds) setActiveTab('refunds');
-    else if (adminData.can_manage_coupons) setActiveTab('coupons');
-    
+    setNeedsLogin(true);
     setIsLoading(false);
   };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginLoading(true);
+    setLoginError('');
 
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: loginEmail,
-        password: loginPassword,
-      });
+    // Use Edge Function for admin login
+    const result = await adminLogin(loginUsername, loginPassword);
 
-      if (error) throw error;
-
-      if (data.user) {
-        // Check if user is admin
-        const { data: adminData, error: adminError } = await supabase
-          .from('admin_auth')
-          .select('*')
-          .eq('user_id', data.user.id)
-          .maybeSingle();
-
-        if (adminError || !adminData) {
-          await supabase.auth.signOut();
-          toast({
-            title: 'خطأ',
-            description: 'هذا الحساب ليس لديه صلاحيات أدمن',
-            variant: 'destructive',
-          });
-          return;
-        }
-
-        toast({ title: 'نجاح', description: 'تم تسجيل الدخول بنجاح' });
-        setNeedsLogin(false);
-        setIsLoading(true);
-        checkAuth();
-      }
-    } catch (error: any) {
-      toast({
-        title: 'خطأ',
-        description: error.message || 'فشل تسجيل الدخول',
-        variant: 'destructive',
-      });
-    } finally {
+    if (!result.success) {
+      setLoginError(result.error || 'فشل تسجيل الدخول');
       setLoginLoading(false);
+      return;
     }
+
+    if (result.admin) {
+      setAdminSession(result.admin);
+      setIsAdmin(true);
+      setNeedsLogin(false);
+      setUserPermissions({
+        can_manage_orders: result.admin.permissions.can_manage_orders,
+        can_manage_products: result.admin.permissions.can_manage_products,
+        can_manage_tokens: result.admin.permissions.can_manage_tokens,
+        can_manage_refunds: result.admin.permissions.can_manage_refunds,
+        can_manage_stock: result.admin.permissions.can_manage_stock,
+        can_manage_coupons: result.admin.permissions.can_manage_coupons,
+        can_manage_users: result.admin.permissions.can_manage_users,
+      });
+      
+      toast({ title: 'نجاح', description: 'تم تسجيل الدخول بنجاح' });
+      
+      // Set default tab
+      if (result.admin.permissions.can_manage_orders) setActiveTab('orders');
+      else if (result.admin.permissions.can_manage_products) setActiveTab('products');
+    }
+
+    setLoginLoading(false);
+  };
+  
+  const handleLogout = () => {
+    adminLogout();
+    setAdminSession(null);
+    setIsAdmin(false);
+    setNeedsLogin(true);
+    setUserPermissions(null);
+    toast({ title: 'تم تسجيل الخروج' });
   };
 
   const fetchData = async () => {
+    if (!adminSession) return;
+    
     if (activeTab === 'products') {
+      // Products, options, and stock can still use public read policies
       const { data: productsData } = await supabase.from('products').select('*').order('created_at', { ascending: false });
       const { data: optionsData } = await supabase.from('product_options').select('*');
-      const { data: stockData } = await supabase.from('stock_items').select('*').eq('is_sold', false);
+      // Stock needs Edge Function
+      const stockResult = await adminAction<{ stock: any[] }>('fetch_stock');
       setProducts(productsData || []);
       setProductOptions((optionsData || []).map(opt => ({ ...opt, is_active: opt.is_active ?? true })));
-      setStockItems(stockData || []);
+      setStockItems(stockResult.data?.stock || []);
     } else if (activeTab === 'tokens') {
-      const { data } = await supabase.from('tokens').select('*').order('created_at', { ascending: false });
-      setTokens(data || []);
+      const tokensResult = await adminAction<{ tokens: any[] }>('fetch_tokens');
+      setTokens(tokensResult.data?.tokens || []);
     } else if (activeTab === 'orders') {
-      // Fetch orders with token values
-      const { data: ordersData } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
-      const { data: tokensData } = await supabase.from('tokens').select('id, token');
+      const ordersResult = await adminAction<{ orders: any[] }>('fetch_orders');
+      const tokensResult = await adminAction<{ tokens: any[] }>('fetch_tokens');
       
       // Map token values to orders
-      const tokenMap = new Map((tokensData || []).map(t => [t.id, t.token]));
-      const ordersWithTokens = (ordersData || []).map(order => ({
+      const tokenMap = new Map((tokensResult.data?.tokens || []).map((t: any) => [t.id, t.token]));
+      const ordersWithTokens = (ordersResult.data?.orders || []).map((order: any) => ({
         ...order,
         token_value: order.token_id ? tokenMap.get(order.token_id) || null : null
       }));
       
       setOrders(ordersWithTokens);
-      // Also fetch products and options for display
+      // Also fetch products and options for display (public read)
       const { data: productsData } = await supabase.from('products').select('*');
       const { data: optionsData } = await supabase.from('product_options').select('*');
       setProducts(productsData || []);
       setProductOptions((optionsData || []).map(opt => ({ ...opt, is_active: opt.is_active ?? true })));
     } else if (activeTab === 'refunds') {
-      const { data: refundsData } = await supabase.from('refund_requests').select('*').order('created_at', { ascending: false });
-      const { data: ordersData } = await supabase.from('orders').select('*');
-      const { data: tokensData } = await supabase.from('tokens').select('*');
-      setRefundRequests(refundsData || []);
-      setOrders(ordersData || []);
-      setTokens(tokensData || []);
+      const refundsResult = await adminAction<{ refunds: any[] }>('fetch_refunds');
+      const ordersResult = await adminAction<{ orders: any[] }>('fetch_orders');
+      const tokensResult = await adminAction<{ tokens: any[] }>('fetch_tokens');
+      setRefundRequests(refundsResult.data?.refunds || []);
+      setOrders(ordersResult.data?.orders || []);
+      setTokens(tokensResult.data?.tokens || []);
     }
   };
 
@@ -1837,13 +1830,13 @@ const Admin = () => {
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-2">البريد الإلكتروني</label>
+              <label className="block text-sm font-medium mb-2">اسم المستخدم</label>
               <input
-                type="email"
-                value={loginEmail}
-                onChange={(e) => setLoginEmail(e.target.value)}
+                type="text"
+                value={loginUsername}
+                onChange={(e) => setLoginUsername(e.target.value)}
                 className="input-field w-full"
-                placeholder="admin@example.com"
+                placeholder="admin"
                 required
                 dir="ltr"
               />
@@ -1858,9 +1851,15 @@ const Admin = () => {
                 className="input-field w-full"
                 placeholder="••••••••"
                 required
-                minLength={6}
+                minLength={4}
               />
             </div>
+
+            {loginError && (
+              <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm">
+                {loginError}
+              </div>
+            )}
 
             <button
               type="submit"
@@ -1947,10 +1946,7 @@ const Admin = () => {
                 <Zap className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
               <button
-                onClick={async () => {
-                  await supabase.auth.signOut();
-                  navigate('/admin/login');
-                }}
+                onClick={handleLogout}
                 className="p-1.5 sm:px-3 sm:py-2 rounded-lg text-destructive hover:bg-destructive/10 transition-colors"
               >
                 <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
