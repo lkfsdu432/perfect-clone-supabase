@@ -22,10 +22,16 @@ interface Product {
   name: string;
   description: string | null;
   image: string | null;
+  image_url: string | null;
   price: number;
   duration: string | null;
   available: number | null;
   instant_delivery?: boolean;
+  is_active: boolean;
+  display_order?: number;
+  category?: string | null;
+  created_at?: string;
+  updated_at?: string;
 }
 
 interface StockItem {
@@ -41,12 +47,23 @@ interface ProductOption {
   product_id: string;
   name: string;
   price: number;
+  original_price?: number | null;
   duration: string | null;
   available: number | null;
   type: string | null;
   description: string | null;
   estimated_time: string | null;
   is_active: boolean;
+  display_order?: number;
+  requires_email?: boolean;
+  requires_password?: boolean;
+  requires_verification_link?: boolean;
+  requires_text_input?: boolean;
+  text_input_label?: string | null;
+  purchase_limit?: number | null;
+  max_quantity_per_order?: number | null;
+  required_text_instructions?: string | null;
+  required_text_info?: string | null;
 }
 
 interface Token {
@@ -54,6 +71,9 @@ interface Token {
   token: string;
   balance: number;
   is_blocked: boolean;
+  created_at?: string;
+  created_ip?: string | null;
+  expires_at?: string | null;
 }
 
 interface Order {
@@ -63,12 +83,23 @@ interface Order {
   product_id: string | null;
   product_option_id: string | null;
   amount: number;
+  total_price?: number;
+  discount_amount?: number;
+  coupon_code?: string | null;
   status: string;
   created_at: string;
+  updated_at?: string;
   email: string | null;
   password: string | null;
+  delivered_email?: string | null;
+  delivered_password?: string | null;
   verification_link: string | null;
+  text_input?: string | null;
   response_message: string | null;
+  stock_content?: string | null;
+  quantity?: number;
+  admin_notes?: string | null;
+  delivered_at?: string | null;
 }
 
 interface RefundRequest {
