@@ -195,15 +195,10 @@ const Index = () => {
       if (updated.status === 'completed' || updated.status === 'rejected') {
         // لا نقوم بردّ الرصيد من هنا لتفادي التكرار (الرد يتم من لوحة الأدمن)
         if (updated.status === 'rejected' && tokenData) {
-          const { data: currentToken } = await supabase
-            .from('tokens')
-            .select('balance')
-            .eq('id', tokenData.id)
-            .maybeSingle();
-
-          if (currentToken) {
-            setTokenBalance(Number(currentToken.balance));
-          }
+          const refreshed = await verifyToken(token); // نفس token اللي المستخدم دخله
+if (refreshed) {
+  setTokenBalance(Number(refreshed.balance));
+}
         }
 
         // Clear active order
@@ -227,15 +222,10 @@ const Index = () => {
 
         // تحديث الرصيد من قاعدة البيانات (في حالة تم ردّ المبلغ من الأدمن)
         if (tokenData) {
-          const { data: currentToken } = await supabase
-            .from('tokens')
-            .select('balance')
-            .eq('id', tokenData.id)
-            .maybeSingle();
-
-          if (currentToken) {
-            setTokenBalance(Number(currentToken.balance));
-          }
+          const refreshed = await verifyToken(token);
+if (refreshed) {
+  setTokenBalance(Number(refreshed.balance));
+}
         }
 
         toast({ title: 'تم إلغاء الطلب', description: 'تم إلغاء الطلب' });
@@ -594,12 +584,24 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
         }
       }
 
-      // Deduct balance
-      const newBalance = tokenBalance - totalPrice;
-      await supabase
-        .from('tokens')
-        .update({ balance: newBalance })
-        .eq('id', tokenData.id);
+      const { data: newBalance, error } = await supabase.rpc(
+  'deduct_token_balance_by_id',
+  {
+    p_token_id: tokenData.id,
+    p_amount: totalPrice,
+  }
+);
+
+if (error) {
+  toast({
+    title: 'خطأ',
+    description: 'الرصيد غير كافي أو التوكن غير صالح',
+    variant: 'destructive',
+  });
+  return;
+}
+
+setTokenBalance(Number(newBalance));
 
       // Update local stock count
       setOptionStockCounts(prev => ({
@@ -675,12 +677,24 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
       }
     }
 
-    // Deduct balance
-    const newBalance = tokenBalance - manualTotalPrice;
-    await supabase
-      .from('tokens')
-      .update({ balance: newBalance })
-      .eq('id', tokenData.id);
+    const { data: newBalance, error } = await supabase.rpc(
+  'deduct_token_balance_by_id',
+  {
+    p_token_id: tokenData.id,
+    p_amount: manualTotalPrice,
+  }
+);
+
+if (error) {
+  toast({
+    title: 'خطأ',
+    description: 'الرصيد غير كافي أو التوكن غير صالح',
+    variant: 'destructive',
+  });
+  return;
+}
+
+setTokenBalance(Number(newBalance));
 
     // Store active order in localStorage
     localStorage.setItem(ACTIVE_ORDER_KEY, JSON.stringify({
@@ -843,20 +857,24 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
           return;
         }
 
-        // Refund balance
-        const { data: currentToken } = await supabase
-          .from('tokens')
-          .select('balance')
-          .eq('id', tokenData.id)
-          .maybeSingle();
+        const { data: newBalance, error } = await supabase.rpc(
+  'refund_token_balance_by_id',
+  {
+    p_token_id: tokenData.id,
+    p_amount: refundAmount,
+  }
+);
 
-        if (!currentToken) throw new Error('TOKEN_NOT_FOUND');
+if (error) {
+  toast({
+    title: 'خطأ',
+    description: 'فشل إرجاع الرصيد',
+    variant: 'destructive',
+  });
+  throw error;
+}
 
-        newBalance = Number(currentToken.balance) + refundAmount;
-        const { error: tokenError } = await supabase
-          .from('tokens')
-          .update({ balance: newBalance })
-          .eq('id', tokenData.id);
+setTokenBalance(Number(newBalance));
 
         if (tokenError) throw tokenError;
       }
@@ -937,13 +955,8 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
 
             // تحديث الرصيد من قاعدة البيانات
             if (tokenData) {
-              const { data: currentToken } = await supabase
-                .from('tokens')
-                .select('balance')
-                .eq('id', tokenData.id)
-                .maybeSingle();
-              if (currentToken) setTokenBalance(Number(currentToken.balance));
-            }
+              const refreshed = await verifyToken(token);
+if (refreshed) setTokenBalance(Number(refreshed.balance));
 
             toast({ title: 'تم إلغاء الطلب', description: 'تم إلغاء الطلب' });
             return;
@@ -953,15 +966,10 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
           if (updatedOrder.status === 'completed' || updatedOrder.status === 'rejected') {
             // لا نقوم بردّ الرصيد من هنا لتفادي التكرار (الرد يتم من لوحة الأدمن)
             if (updatedOrder.status === 'rejected' && tokenData) {
-              const { data: currentToken } = await supabase
-                .from('tokens')
-                .select('balance')
-                .eq('id', tokenData.id)
-                .maybeSingle();
-
-              if (currentToken) {
-                setTokenBalance(Number(currentToken.balance));
-              }
+              const refreshed = await verifyToken(token);
+if (refreshed) {
+  setTokenBalance(Number(refreshed.balance));
+}
             }
 
             setResult(updatedOrder.status === 'completed' ? 'success' : 'error');
@@ -1063,15 +1071,11 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
     };
 
     const refetchBalance = async () => {
-      const { data: currentToken } = await supabase
-        .from('tokens')
-        .select('balance')
-        .eq('id', tokenData.id)
-        .maybeSingle();
-      if (currentToken?.balance !== undefined && currentToken?.balance !== null) {
-        setTokenBalance(Number(currentToken.balance));
-      }
-    };
+  const refreshed = await verifyToken(token);
+  if (refreshed) {
+    setTokenBalance(Number(refreshed.balance));
+  }
+};
 
     const ordersChannel = supabase
       .channel(`token-orders-${tokenData.id}`)
