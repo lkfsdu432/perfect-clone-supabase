@@ -976,7 +976,32 @@ if (refreshed) {
             setStep('result');
           }
         }
-      .subscribe();
+const channel = supabase
+  .channel(`token-orders-${tokenData?.id ?? 'no-token'}`)
+  .on(
+    'postgres_changes',
+    {
+      event: '*',
+      schema: 'public',
+      table: 'orders',
+      filter: tokenData?.id ? `token_id=eq.${tokenData.id}` : undefined,
+    },
+    async (payload) => {
+      const updatedOrder = payload.new as any;
+      if (!tokenData?.id) return;
+
+      if (updatedOrder?.status === 'completed' || updatedOrder?.status === 'rejected') {
+        if (updatedOrder.status === 'rejected') {
+          const refreshed = await verifyToken(token);
+          if (refreshed) setTokenBalance(Number(refreshed.balance));
+        }
+
+        setResult(updatedOrder.status === 'completed' ? 'success' : 'error');
+        setStep('result');
+      }
+    }
+  )
+  .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
