@@ -129,6 +129,46 @@ Deno.serve(async (req) => {
         result = { admin_users: adminUsers };
         break;
 
+      case 'fetch_news':
+        const { data: newsData } = await supabase
+          .from('news')
+          .select('*')
+          .order('created_at', { ascending: false });
+        result = { news: newsData };
+        break;
+
+      case 'fetch_products':
+        const { data: productsData } = await supabase
+          .from('products')
+          .select('*')
+          .order('display_order', { ascending: true });
+        result = { products: productsData };
+        break;
+
+      case 'fetch_product_options':
+        const { data: optionsData } = await supabase
+          .from('product_options')
+          .select('*')
+          .order('display_order', { ascending: true });
+        result = { product_options: optionsData };
+        break;
+
+      case 'fetch_payment_methods':
+        const { data: paymentMethodsData } = await supabase
+          .from('payment_methods')
+          .select('*')
+          .order('display_order', { ascending: true });
+        result = { payment_methods: paymentMethodsData };
+        break;
+
+      case 'fetch_coupons':
+        const { data: couponsData } = await supabase
+          .from('coupons')
+          .select('*')
+          .order('created_at', { ascending: false });
+        result = { coupons: couponsData };
+        break;
+
       // ========== UPDATE ACTIONS ==========
       case 'update_order':
         if (!adminUser.can_manage_orders) {
@@ -235,6 +275,291 @@ Deno.serve(async (req) => {
           .delete()
           .in('id', payload.ids);
         if (delStockError) throw delStockError;
+        result = { success: true };
+        break;
+
+      // ========== NEWS ACTIONS ==========
+      case 'add_news':
+        const { error: addNewsError } = await supabase
+          .from('news')
+          .insert({ title: payload.title, content: payload.content, is_active: true });
+        if (addNewsError) throw addNewsError;
+        result = { success: true };
+        break;
+
+      case 'update_news':
+        const { error: updateNewsError } = await supabase
+          .from('news')
+          .update(payload.data)
+          .eq('id', payload.news_id);
+        if (updateNewsError) throw updateNewsError;
+        result = { success: true };
+        break;
+
+      case 'delete_news':
+        const { error: deleteNewsError } = await supabase
+          .from('news')
+          .delete()
+          .eq('id', payload.news_id);
+        if (deleteNewsError) throw deleteNewsError;
+        result = { success: true };
+        break;
+
+      // ========== PRODUCTS ACTIONS ==========
+      case 'add_product':
+        if (!adminUser.can_manage_products) {
+          return new Response(
+            JSON.stringify({ error: 'Permission denied' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        const { data: newProduct, error: addProductError } = await supabase
+          .from('products')
+          .insert(payload.data)
+          .select()
+          .single();
+        if (addProductError) throw addProductError;
+        result = { success: true, product: newProduct };
+        break;
+
+      case 'update_product':
+        if (!adminUser.can_manage_products) {
+          return new Response(
+            JSON.stringify({ error: 'Permission denied' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        const { error: updateProductError } = await supabase
+          .from('products')
+          .update(payload.data)
+          .eq('id', payload.product_id);
+        if (updateProductError) throw updateProductError;
+        result = { success: true };
+        break;
+
+      case 'delete_product':
+        if (!adminUser.can_manage_products) {
+          return new Response(
+            JSON.stringify({ error: 'Permission denied' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        const { error: deleteProductError } = await supabase
+          .from('products')
+          .delete()
+          .eq('id', payload.product_id);
+        if (deleteProductError) throw deleteProductError;
+        result = { success: true };
+        break;
+
+      // ========== PRODUCT OPTIONS ACTIONS ==========
+      case 'add_product_option':
+        if (!adminUser.can_manage_products) {
+          return new Response(
+            JSON.stringify({ error: 'Permission denied' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        const { data: newOption, error: addOptionError } = await supabase
+          .from('product_options')
+          .insert(payload.data)
+          .select()
+          .single();
+        if (addOptionError) throw addOptionError;
+        result = { success: true, option: newOption };
+        break;
+
+      case 'update_product_option':
+        if (!adminUser.can_manage_products) {
+          return new Response(
+            JSON.stringify({ error: 'Permission denied' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        const { error: updateOptionError } = await supabase
+          .from('product_options')
+          .update(payload.data)
+          .eq('id', payload.option_id);
+        if (updateOptionError) throw updateOptionError;
+        result = { success: true };
+        break;
+
+      case 'delete_product_option':
+        if (!adminUser.can_manage_products) {
+          return new Response(
+            JSON.stringify({ error: 'Permission denied' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        const { error: deleteOptionError } = await supabase
+          .from('product_options')
+          .delete()
+          .eq('id', payload.option_id);
+        if (deleteOptionError) throw deleteOptionError;
+        result = { success: true };
+        break;
+
+      // ========== PAYMENT METHODS ACTIONS ==========
+      case 'add_payment_method':
+        if (!adminUser.can_manage_payment_methods) {
+          return new Response(
+            JSON.stringify({ error: 'Permission denied' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        const { data: newPayment, error: addPaymentError } = await supabase
+          .from('payment_methods')
+          .insert(payload.data)
+          .select()
+          .single();
+        if (addPaymentError) throw addPaymentError;
+        result = { success: true, payment_method: newPayment };
+        break;
+
+      case 'update_payment_method':
+        if (!adminUser.can_manage_payment_methods) {
+          return new Response(
+            JSON.stringify({ error: 'Permission denied' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        const { error: updatePaymentError } = await supabase
+          .from('payment_methods')
+          .update(payload.data)
+          .eq('id', payload.payment_method_id);
+        if (updatePaymentError) throw updatePaymentError;
+        result = { success: true };
+        break;
+
+      case 'delete_payment_method':
+        if (!adminUser.can_manage_payment_methods) {
+          return new Response(
+            JSON.stringify({ error: 'Permission denied' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        const { error: deletePaymentError } = await supabase
+          .from('payment_methods')
+          .delete()
+          .eq('id', payload.payment_method_id);
+        if (deletePaymentError) throw deletePaymentError;
+        result = { success: true };
+        break;
+
+      // ========== COUPONS ACTIONS ==========
+      case 'add_coupon':
+        if (!adminUser.can_manage_coupons) {
+          return new Response(
+            JSON.stringify({ error: 'Permission denied' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        const { data: newCoupon, error: addCouponError } = await supabase
+          .from('coupons')
+          .insert(payload.data)
+          .select()
+          .single();
+        if (addCouponError) throw addCouponError;
+        result = { success: true, coupon: newCoupon };
+        break;
+
+      case 'update_coupon':
+        if (!adminUser.can_manage_coupons) {
+          return new Response(
+            JSON.stringify({ error: 'Permission denied' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        const { error: updateCouponError } = await supabase
+          .from('coupons')
+          .update(payload.data)
+          .eq('id', payload.coupon_id);
+        if (updateCouponError) throw updateCouponError;
+        result = { success: true };
+        break;
+
+      case 'delete_coupon':
+        if (!adminUser.can_manage_coupons) {
+          return new Response(
+            JSON.stringify({ error: 'Permission denied' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        const { error: deleteCouponError } = await supabase
+          .from('coupons')
+          .delete()
+          .eq('id', payload.coupon_id);
+        if (deleteCouponError) throw deleteCouponError;
+        result = { success: true };
+        break;
+
+      // ========== SETTINGS ACTIONS ==========
+      case 'fetch_settings':
+        const { data: settingsData } = await supabase
+          .from('settings')
+          .select('*');
+        result = { settings: settingsData };
+        break;
+
+      case 'update_setting':
+        const { error: updateSettingError } = await supabase
+          .from('settings')
+          .upsert({ key: payload.key, value: payload.value, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+        if (updateSettingError) throw updateSettingError;
+        result = { success: true };
+        break;
+
+      // ========== ADMIN USERS ACTIONS ==========  
+      case 'add_admin_user':
+        if (!adminUser.can_manage_users) {
+          return new Response(
+            JSON.stringify({ error: 'Permission denied' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        const { data: newAdmin, error: addAdminError } = await supabase
+          .from('admin_users')
+          .insert(payload.data)
+          .select()
+          .single();
+        if (addAdminError) throw addAdminError;
+        result = { success: true, admin: newAdmin };
+        break;
+
+      case 'update_admin_user':
+        if (!adminUser.can_manage_users) {
+          return new Response(
+            JSON.stringify({ error: 'Permission denied' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        const { error: updateAdminError } = await supabase
+          .from('admin_users')
+          .update(payload.data)
+          .eq('id', payload.admin_user_id);
+        if (updateAdminError) throw updateAdminError;
+        result = { success: true };
+        break;
+
+      case 'delete_admin_user':
+        if (!adminUser.can_manage_users) {
+          return new Response(
+            JSON.stringify({ error: 'Permission denied' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        // Prevent deleting self
+        if (payload.admin_user_id === admin_id) {
+          return new Response(
+            JSON.stringify({ error: 'Cannot delete yourself' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        const { error: deleteAdminError } = await supabase
+          .from('admin_users')
+          .delete()
+          .eq('id', payload.admin_user_id);
+        if (deleteAdminError) throw deleteAdminError;
         result = { success: true };
         break;
 

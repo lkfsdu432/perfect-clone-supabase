@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Trash2, Edit2, Save, X, Newspaper, Eye, EyeOff, Loader2 } from 'lucide-react';
-import { Switch } from '@/components/ui/switch';
+import { fetchNews, addNews, updateNews, deleteNews } from '@/lib/adminApi';
 
 interface News {
   id: string;
@@ -22,20 +21,16 @@ export const NewsManagement = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchNews();
+    loadNews();
   }, []);
 
-  const fetchNews = async () => {
+  const loadNews = async () => {
     setIsLoading(true);
-    const { data, error } = await supabase
-      .from('news')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      toast({ title: 'خطأ', description: 'فشل تحميل الأخبار', variant: 'destructive' });
+    const result = await fetchNews();
+    if (result.success && result.data?.news) {
+      setNews(result.data.news);
     } else {
-      setNews(data || []);
+      toast({ title: 'خطأ', description: result.error || 'فشل تحميل الأخبار', variant: 'destructive' });
     }
     setIsLoading(false);
   };
@@ -67,31 +62,24 @@ export const NewsManagement = () => {
     setSaving(true);
 
     if (editingNews) {
-      const { error } = await supabase
-        .from('news')
-        .update({ title: form.title, content: form.content })
-        .eq('id', editingNews.id);
-
-      if (error) {
-        toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
-      } else {
+      const result = await updateNews(editingNews.id, { title: form.title, content: form.content });
+      if (result.success) {
         toast({ title: 'تم', description: 'تم تحديث الخبر' });
         setShowModal(false);
         resetForm();
-        fetchNews();
+        loadNews();
+      } else {
+        toast({ title: 'خطأ', description: result.error || 'فشل التحديث', variant: 'destructive' });
       }
     } else {
-      const { error } = await supabase
-        .from('news')
-        .insert({ title: form.title, content: form.content });
-
-      if (error) {
-        toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
-      } else {
+      const result = await addNews(form.title, form.content);
+      if (result.success) {
         toast({ title: 'تم', description: 'تم إضافة الخبر' });
         setShowModal(false);
         resetForm();
-        fetchNews();
+        loadNews();
+      } else {
+        toast({ title: 'خطأ', description: result.error || 'فشل الإضافة', variant: 'destructive' });
       }
     }
 
@@ -101,27 +89,22 @@ export const NewsManagement = () => {
   const handleDelete = async (id: string) => {
     if (!confirm('هل أنت متأكد من حذف هذا الخبر؟')) return;
 
-    const { error } = await supabase.from('news').delete().eq('id', id);
-
-    if (error) {
-      toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
-    } else {
+    const result = await deleteNews(id);
+    if (result.success) {
       toast({ title: 'تم', description: 'تم حذف الخبر' });
-      fetchNews();
+      loadNews();
+    } else {
+      toast({ title: 'خطأ', description: result.error || 'فشل الحذف', variant: 'destructive' });
     }
   };
 
   const toggleActive = async (item: News) => {
-    const { error } = await supabase
-      .from('news')
-      .update({ is_active: !item.is_active })
-      .eq('id', item.id);
-
-    if (error) {
-      toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
-    } else {
+    const result = await updateNews(item.id, { is_active: !item.is_active });
+    if (result.success) {
       toast({ title: 'تم', description: item.is_active ? 'تم إخفاء الخبر' : 'تم إظهار الخبر' });
-      fetchNews();
+      loadNews();
+    } else {
+      toast({ title: 'خطأ', description: result.error || 'فشل التحديث', variant: 'destructive' });
     }
   };
 
