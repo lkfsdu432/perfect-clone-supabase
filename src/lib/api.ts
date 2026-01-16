@@ -1,4 +1,11 @@
 const SUPABASE_URL = "https://ymcabvghfecbbbugkpow.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_yCJbSd21pHp6YsfEGdP4fg_eFqvd9im";
+const EDGE_HEADERS = {
+  'Content-Type': 'application/json',
+  apikey: SUPABASE_ANON_KEY,
+  Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+} as const;
+
 
 export interface TokenData {
   id: string;
@@ -95,7 +102,7 @@ export async function verifyToken(tokenValue: string): Promise<TokenData | null>
   try {
     const response = await fetch(`${SUPABASE_URL}/functions/v1/verify-token`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: EDGE_HEADERS,
       body: JSON.stringify({ token_value: tokenValue }),
     });
 
@@ -120,7 +127,7 @@ export async function getTokenData(tokenValue: string): Promise<TokenFullData | 
   try {
     const response = await fetch(`${SUPABASE_URL}/functions/v1/get-token-data`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: EDGE_HEADERS,
       body: JSON.stringify({ token_value: tokenValue }),
     });
 
@@ -137,7 +144,7 @@ export async function getOrderStatus(orderId: string, tokenValue: string): Promi
   try {
     const response = await fetch(`${SUPABASE_URL}/functions/v1/get-order-status`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: EDGE_HEADERS,
       body: JSON.stringify({ order_id: orderId, token_value: tokenValue }),
     });
 
@@ -155,7 +162,7 @@ export async function createOrder(params: CreateOrderParams): Promise<CreateOrde
   try {
     const response = await fetch(`${SUPABASE_URL}/functions/v1/create-order`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: EDGE_HEADERS,
       body: JSON.stringify(params),
     });
 
@@ -185,7 +192,7 @@ export async function createRecharge(params: {
   try {
     const response = await fetch(`${SUPABASE_URL}/functions/v1/create-recharge`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: EDGE_HEADERS,
       body: JSON.stringify(params),
     });
 
@@ -211,7 +218,7 @@ export async function createRefund(params: {
   try {
     const response = await fetch(`${SUPABASE_URL}/functions/v1/create-refund`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: EDGE_HEADERS,
       body: JSON.stringify(params),
     });
 
@@ -237,7 +244,7 @@ export async function sendMessage(params: {
   try {
     const response = await fetch(`${SUPABASE_URL}/functions/v1/send-message`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: EDGE_HEADERS,
       body: JSON.stringify(params),
     });
 
@@ -262,7 +269,7 @@ export async function getMessages(params: {
   try {
     const response = await fetch(`${SUPABASE_URL}/functions/v1/get-messages`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: EDGE_HEADERS,
       body: JSON.stringify(params),
     });
 
@@ -282,7 +289,7 @@ export async function cancelOrder(params: {
   try {
     const response = await fetch(`${SUPABASE_URL}/functions/v1/cancel-order`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: EDGE_HEADERS,
       body: JSON.stringify(params),
     });
 
