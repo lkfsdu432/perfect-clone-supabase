@@ -322,14 +322,19 @@ const Index = () => {
   };
 
   const verifyToken = async (tokenValue: string) => {
-    const { data } = await supabase
-      .from('tokens')
-      .select('id, balance, is_blocked')
-      .eq('token', tokenValue)
-      .maybeSingle();
+  const cleanToken = tokenValue.trim().toUpperCase();
 
-    return data;
-  };
+  const { data, error } = await supabase.rpc('verify_token', {
+    p_token: cleanToken,
+  });
+
+  if (error) {
+    console.error('verify_token error:', error);
+    return null;
+  }
+
+  return data && data.length > 0 ? data[0] : null;
+};
 
   const handleBuySubmit = async () => {
     if (!token.trim() || !product || !selectedOption) return;
