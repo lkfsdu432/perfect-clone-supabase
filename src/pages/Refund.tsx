@@ -34,12 +34,10 @@ const Refund = () => {
 
     setIsLoading(true);
 
-    // Verify token exists and check if blocked
-    const { data: tokenData } = await supabase
-      .from('tokens')
-      .select('id, is_blocked')
-      .eq('token', tokenValue.trim())
-      .maybeSingle();
+    // Verify token exists and check if blocked using RPC
+    const { data: tokenData } = await supabase.rpc('check_token_balance', { 
+      token_input: tokenValue.trim() 
+    });
 
     if (!tokenData) {
       setError('التوكن غير صالح');
@@ -132,12 +130,10 @@ const Refund = () => {
 
     setIsLoading(true);
 
-    // Verify token exists
-    const { data: tokenData } = await supabase
-      .from('tokens')
-      .select('id')
-      .eq('token', tokenValue.trim())
-      .maybeSingle();
+    // Verify token exists using RPC
+    const { data: tokenData } = await supabase.rpc('check_token_balance', { 
+      token_input: tokenValue.trim() 
+    });
 
     if (!tokenData) {
       setError('التوكن غير صالح');
