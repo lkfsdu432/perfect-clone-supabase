@@ -1719,7 +1719,7 @@ const Index = () => {
                 )}
                 {/* Chat Section - Only show when in_progress */}
                 {activeOrder.status === 'in_progress' && (
-                  <OrderChat orderId={activeOrder.id} senderType="customer" />
+                  <OrderChat orderId={activeOrder.id} senderType="customer" tokenValue={token} />
                 )}
 
                 {activeOrder.status === 'pending' && (

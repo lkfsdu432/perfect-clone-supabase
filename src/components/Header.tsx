@@ -155,7 +155,7 @@ const Header = () => {
             </div>
           ) : (
             <RechargeRequest
-              tokenId={tokenData.id}
+              tokenValue={rechargeToken.trim()}
               onSuccess={handleCloseDialog}
             />
           )}
