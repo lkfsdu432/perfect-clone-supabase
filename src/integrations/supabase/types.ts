@@ -14,6 +14,54 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_auth: {
+        Row: {
+          can_manage_coupons: boolean | null
+          can_manage_orders: boolean | null
+          can_manage_payment_methods: boolean | null
+          can_manage_products: boolean | null
+          can_manage_recharges: boolean | null
+          can_manage_refunds: boolean | null
+          can_manage_stock: boolean | null
+          can_manage_tokens: boolean | null
+          can_manage_users: boolean | null
+          created_at: string
+          id: string
+          is_super_admin: boolean | null
+          user_id: string
+        }
+        Insert: {
+          can_manage_coupons?: boolean | null
+          can_manage_orders?: boolean | null
+          can_manage_payment_methods?: boolean | null
+          can_manage_products?: boolean | null
+          can_manage_recharges?: boolean | null
+          can_manage_refunds?: boolean | null
+          can_manage_stock?: boolean | null
+          can_manage_tokens?: boolean | null
+          can_manage_users?: boolean | null
+          created_at?: string
+          id?: string
+          is_super_admin?: boolean | null
+          user_id: string
+        }
+        Update: {
+          can_manage_coupons?: boolean | null
+          can_manage_orders?: boolean | null
+          can_manage_payment_methods?: boolean | null
+          can_manage_products?: boolean | null
+          can_manage_recharges?: boolean | null
+          can_manage_refunds?: boolean | null
+          can_manage_stock?: boolean | null
+          can_manage_tokens?: boolean | null
+          can_manage_users?: boolean | null
+          created_at?: string
+          id?: string
+          is_super_admin?: boolean | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       admin_users: {
         Row: {
           can_manage_coupons: boolean
@@ -110,12 +158,54 @@ export type Database = {
         }
         Relationships: []
       }
+      device_purchases: {
+        Row: {
+          created_at: string
+          device_fingerprint: string
+          id: string
+          order_id: string | null
+          product_option_id: string | null
+          quantity: number | null
+        }
+        Insert: {
+          created_at?: string
+          device_fingerprint: string
+          id?: string
+          order_id?: string | null
+          product_option_id?: string | null
+          quantity?: number | null
+        }
+        Update: {
+          created_at?: string
+          device_fingerprint?: string
+          id?: string
+          order_id?: string | null
+          product_option_id?: string | null
+          quantity?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_purchases_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_purchases_product_option_id_fkey"
+            columns: ["product_option_id"]
+            isOneToOne: false
+            referencedRelation: "product_options"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       news: {
         Row: {
           content: string
           created_at: string
           id: string
-          is_visible: boolean
+          is_active: boolean | null
           title: string
           updated_at: string
         }
@@ -123,7 +213,7 @@ export type Database = {
           content: string
           created_at?: string
           id?: string
-          is_visible?: boolean
+          is_active?: boolean | null
           title: string
           updated_at?: string
         }
@@ -131,7 +221,7 @@ export type Database = {
           content?: string
           created_at?: string
           id?: string
-          is_visible?: boolean
+          is_active?: boolean | null
           title?: string
           updated_at?: string
         }
@@ -268,9 +358,11 @@ export type Database = {
       }
       payment_methods: {
         Row: {
+          account_info: string | null
           account_name: string | null
           account_number: string | null
           created_at: string
+          details: string | null
           display_order: number
           id: string
           instructions: string | null
@@ -281,9 +373,11 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          account_info?: string | null
           account_name?: string | null
           account_number?: string | null
           created_at?: string
+          details?: string | null
           display_order?: number
           id?: string
           instructions?: string | null
@@ -294,9 +388,11 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          account_info?: string | null
           account_name?: string | null
           account_number?: string | null
           created_at?: string
+          details?: string | null
           display_order?: number
           id?: string
           instructions?: string | null
@@ -528,38 +624,75 @@ export type Database = {
         }
         Relationships: []
       }
-      stock: {
+      site_settings: {
+        Row: {
+          created_at: string
+          extra_data: string | null
+          id: string
+          key: string
+          updated_at: string
+          value: string | null
+        }
+        Insert: {
+          created_at?: string
+          extra_data?: string | null
+          id?: string
+          key: string
+          updated_at?: string
+          value?: string | null
+        }
+        Update: {
+          created_at?: string
+          extra_data?: string | null
+          id?: string
+          key?: string
+          updated_at?: string
+          value?: string | null
+        }
+        Relationships: []
+      }
+      stock_items: {
         Row: {
           content: string
           created_at: string
           id: string
-          is_used: boolean
-          order_id: string | null
+          is_sold: boolean
+          product_id: string | null
           product_option_id: string
-          used_at: string | null
+          sold_at: string | null
+          sold_to_order_id: string | null
         }
         Insert: {
           content: string
           created_at?: string
           id?: string
-          is_used?: boolean
-          order_id?: string | null
+          is_sold?: boolean
+          product_id?: string | null
           product_option_id: string
-          used_at?: string | null
+          sold_at?: string | null
+          sold_to_order_id?: string | null
         }
         Update: {
           content?: string
           created_at?: string
           id?: string
-          is_used?: boolean
-          order_id?: string | null
+          is_sold?: boolean
+          product_id?: string | null
           product_option_id?: string
-          used_at?: string | null
+          sold_at?: string | null
+          sold_to_order_id?: string | null
         }
         Relationships: [
           {
+            foreignKeyName: "stock_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "stock_order_id_fkey"
-            columns: ["order_id"]
+            columns: ["sold_to_order_id"]
             isOneToOne: false
             referencedRelation: "orders"
             referencedColumns: ["id"]
@@ -608,19 +741,28 @@ export type Database = {
           created_at: string
           id: string
           ip: string | null
+          ip_hash: string | null
+          page: string | null
           user_agent: string | null
+          visited_at: string | null
         }
         Insert: {
           created_at?: string
           id?: string
           ip?: string | null
+          ip_hash?: string | null
+          page?: string | null
           user_agent?: string | null
+          visited_at?: string | null
         }
         Update: {
           created_at?: string
           id?: string
           ip?: string | null
+          ip_hash?: string | null
+          page?: string | null
           user_agent?: string | null
+          visited_at?: string | null
         }
         Relationships: []
       }
