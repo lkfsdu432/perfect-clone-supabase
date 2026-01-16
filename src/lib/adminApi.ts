@@ -178,3 +178,109 @@ export async function addStock(items: any[]) {
 export async function deleteStock(ids: string[]) {
   return adminAction('delete_stock', { ids });
 }
+
+// ========== NEWS ==========
+export async function fetchNews() {
+  return adminAction<{ news: any[] }>('fetch_news');
+}
+
+export async function addNews(title: string, content: string) {
+  return adminAction('add_news', { title, content });
+}
+
+export async function updateNews(newsId: string, data: any) {
+  return adminAction('update_news', { news_id: newsId, data });
+}
+
+export async function deleteNews(newsId: string) {
+  return adminAction('delete_news', { news_id: newsId });
+}
+
+// ========== PRODUCTS ==========
+export async function fetchProducts() {
+  return adminAction<{ products: any[] }>('fetch_products');
+}
+
+export async function fetchProductOptions() {
+  return adminAction<{ product_options: any[] }>('fetch_product_options');
+}
+
+export async function addProduct(data: any) {
+  return adminAction('add_product', { data });
+}
+
+export async function updateProduct(productId: string, data: any) {
+  return adminAction('update_product', { product_id: productId, data });
+}
+
+export async function deleteProduct(productId: string) {
+  return adminAction('delete_product', { product_id: productId });
+}
+
+export async function addProductOption(data: any) {
+  return adminAction('add_product_option', { data });
+}
+
+export async function updateProductOption(optionId: string, data: any) {
+  return adminAction('update_product_option', { option_id: optionId, data });
+}
+
+export async function deleteProductOption(optionId: string) {
+  return adminAction('delete_product_option', { option_id: optionId });
+}
+
+// ========== PAYMENT METHODS ==========
+export async function fetchPaymentMethods() {
+  return adminAction<{ payment_methods: any[] }>('fetch_payment_methods');
+}
+
+export async function addPaymentMethod(data: any) {
+  return adminAction('add_payment_method', { data });
+}
+
+export async function updatePaymentMethod(paymentMethodId: string, data: any) {
+  return adminAction('update_payment_method', { payment_method_id: paymentMethodId, data });
+}
+
+export async function deletePaymentMethod(paymentMethodId: string) {
+  return adminAction('delete_payment_method', { payment_method_id: paymentMethodId });
+}
+
+// ========== COUPONS ==========
+export async function fetchCoupons() {
+  return adminAction<{ coupons: any[] }>('fetch_coupons');
+}
+
+export async function addCoupon(data: any) {
+  return adminAction('add_coupon', { data });
+}
+
+export async function updateCoupon(couponId: string, data: any) {
+  return adminAction('update_coupon', { coupon_id: couponId, data });
+}
+
+export async function deleteCoupon(couponId: string) {
+  return adminAction('delete_coupon', { coupon_id: couponId });
+}
+
+// ========== SETTINGS ==========
+export async function fetchSettings() {
+  return adminAction<{ settings: any[] }>('fetch_settings');
+}
+
+export async function updateSetting(key: string, value: string) {
+  return adminAction('update_setting', { key, value });
+}
+
+// ========== ADMIN USERS ==========
+export async function addAdminUser(data: any) {
+  return adminAction('add_admin_user', { data });
+}
+
+export async function updateAdminUser(adminUserId: string, data: any) {
+  return adminAction('update_admin_user', { admin_user_id: adminUserId, data });
+}
+
+export async function deleteAdminUser(adminUserId: string) {
+  return adminAction('delete_admin_user', { admin_user_id: adminUserId });
+}
