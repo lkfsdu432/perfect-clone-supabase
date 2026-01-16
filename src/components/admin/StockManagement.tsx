@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { 
-  Database, Plus, Trash2, Package, Loader2, Search, 
+  fetchStock, addStock as apiAddStock, deleteStock as apiDeleteStock, 
+  fetchProducts, fetchProductOptions 
+} from '@/lib/adminApi';
+import { 
+  Database, Plus, Trash2, Package, Loader2, Search,
   Filter, Eye, EyeOff, Copy, RefreshCw, ChevronDown, ChevronUp 
 } from 'lucide-react';
 
@@ -50,24 +53,24 @@ const StockManagement = () => {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      // Fetch all data in parallel
+      // Fetch all data in parallel via admin API
       const [stockRes, productsRes, optionsRes] = await Promise.all([
-        supabase
-          .from('stock_items')
-          .select('*')
-          .eq('is_sold', showSold)
-          .order('created_at', { ascending: false }),
-        supabase.from('products').select('id, name'),
-        supabase.from('product_options').select('id, product_id, name, price, type')
+        fetchStock(),
+        fetchProducts(),
+        fetchProductOptions()
       ]);
 
-      if (stockRes.error) throw stockRes.error;
-      if (productsRes.error) throw productsRes.error;
-      if (optionsRes.error) throw optionsRes.error;
+      if (!stockRes.success) throw new Error(stockRes.error || 'Failed to fetch stock');
+      if (!productsRes.success) throw new Error(productsRes.error || 'Failed to fetch products');
+      if (!optionsRes.success) throw new Error(optionsRes.error || 'Failed to fetch options');
 
-      setStockItems(stockRes.data || []);
-      setProducts(productsRes.data || []);
-      setProductOptions(optionsRes.data || []);
+      // Filter by showSold
+      const allStock = stockRes.data?.stock || [];
+      const filtered = allStock.filter((item: StockItem) => item.is_sold === showSold);
+      
+      setStockItems(filtered);
+      setProducts(productsRes.data?.products || []);
+      setProductOptions(optionsRes.data?.product_options || []);
     } catch (error: any) {
       toast({ title: 'خطأ', description: error.message, variant: 'destructive' });
     } finally {
@@ -91,9 +94,9 @@ const StockManagement = () => {
         is_sold: false
       }));
 
-      const { error } = await supabase.from('stock_items').insert(stockToInsert);
+      const result = await apiAddStock(stockToInsert);
 
-      if (error) throw error;
+      if (!result.success) throw new Error(result.error);
 
       toast({ title: 'تم', description: `تم إضافة ${items.length} عنصر للمخزون` });
       setShowAddModal(false);
@@ -109,8 +112,8 @@ const StockManagement = () => {
 
   const handleDeleteItem = async (id: string) => {
     try {
-      const { error } = await supabase.from('stock_items').delete().eq('id', id);
-      if (error) throw error;
+      const result = await apiDeleteStock([id]);
+      if (!result.success) throw new Error(result.error);
       toast({ title: 'تم', description: 'تم حذف العنصر' });
       setStockItems(prev => prev.filter(item => item.id !== id));
     } catch (error: any) {
@@ -122,13 +125,16 @@ const StockManagement = () => {
     if (!confirm('هل أنت متأكد من حذف كل المخزون لهذا المنتج؟')) return;
     
     try {
-      const { error } = await supabase
-        .from('stock_items')
-        .delete()
-        .eq('product_option_id', optionId)
-        .eq('is_sold', showSold);
+      // Get IDs of items to delete
+      const idsToDelete = stockItems
+        .filter(item => item.product_option_id === optionId)
+        .map(item => item.id);
       
-      if (error) throw error;
+      if (idsToDelete.length === 0) return;
+      
+      const result = await apiDeleteStock(idsToDelete);
+      if (!result.success) throw new Error(result.error);
+      
       toast({ title: 'تم', description: 'تم حذف كل المخزون' });
       fetchData();
     } catch (error: any) {
