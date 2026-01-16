@@ -14,7 +14,149 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      payment_methods: {
+        Row: {
+          account_name: string | null
+          account_number: string | null
+          created_at: string
+          display_order: number
+          id: string
+          instructions: string | null
+          is_active: boolean
+          is_visible: boolean
+          name: string
+          type: string | null
+          updated_at: string
+        }
+        Insert: {
+          account_name?: string | null
+          account_number?: string | null
+          created_at?: string
+          display_order?: number
+          id?: string
+          instructions?: string | null
+          is_active?: boolean
+          is_visible?: boolean
+          name: string
+          type?: string | null
+          updated_at?: string
+        }
+        Update: {
+          account_name?: string | null
+          account_number?: string | null
+          created_at?: string
+          display_order?: number
+          id?: string
+          instructions?: string | null
+          is_active?: boolean
+          is_visible?: boolean
+          name?: string
+          type?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      recharge_requests: {
+        Row: {
+          admin_note: string | null
+          amount: number
+          created_at: string
+          id: string
+          payment_method: string | null
+          payment_method_id: string | null
+          processed_at: string | null
+          proof_image_url: string | null
+          sender_reference: string | null
+          status: string
+          token_id: string
+          updated_at: string
+        }
+        Insert: {
+          admin_note?: string | null
+          amount: number
+          created_at?: string
+          id?: string
+          payment_method?: string | null
+          payment_method_id?: string | null
+          processed_at?: string | null
+          proof_image_url?: string | null
+          sender_reference?: string | null
+          status?: string
+          token_id: string
+          updated_at?: string
+        }
+        Update: {
+          admin_note?: string | null
+          amount?: number
+          created_at?: string
+          id?: string
+          payment_method?: string | null
+          payment_method_id?: string | null
+          processed_at?: string | null
+          proof_image_url?: string | null
+          sender_reference?: string | null
+          status?: string
+          token_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recharge_requests_token_id_fkey"
+            columns: ["token_id"]
+            isOneToOne: false
+            referencedRelation: "tokens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      settings: {
+        Row: {
+          key: string
+          updated_at: string
+          value: string | null
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          value?: string | null
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          value?: string | null
+        }
+        Relationships: []
+      }
+      tokens: {
+        Row: {
+          balance: number
+          created_at: string
+          created_ip: string | null
+          id: string
+          is_blocked: boolean
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          balance?: number
+          created_at?: string
+          created_ip?: string | null
+          id?: string
+          is_blocked?: boolean
+          token: string
+          updated_at?: string
+        }
+        Update: {
+          balance?: number
+          created_at?: string
+          created_ip?: string | null
+          id?: string
+          is_blocked?: boolean
+          token?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
