@@ -39,9 +39,11 @@ const Header = () => {
     }
     setIsVerifying(true);
     try {
-      const { data, error } = await supabase.rpc('check_token_balance', { 
-        token_input: rechargeToken.trim() 
-      });
+      const { data, error } = await supabase
+        .from('tokens')
+        .select('id')
+        .eq('token', rechargeToken.trim())
+        .maybeSingle();
 
       if (error) throw error;
       if (!data) {

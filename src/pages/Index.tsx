@@ -212,10 +212,12 @@ const Index = () => {
     const applyActiveOrderUpdate = async (updated: ActiveOrder) => {
       if (updated.status === 'completed' || updated.status === 'rejected') {
         // لا نقوم بردّ الرصيد من هنا لتفادي التكرار (الرد يتم من لوحة الأدمن)
-        if (updated.status === 'rejected' && tokenData && token) {
-          const { data: currentToken } = await supabase.rpc('check_token_balance', { 
-            token_input: token 
-          });
+        if (updated.status === 'rejected' && tokenData) {
+          const { data: currentToken } = await supabase
+            .from('tokens')
+            .select('balance')
+            .eq('id', tokenData.id)
+            .maybeSingle();
 
           if (currentToken) {
             setTokenBalance(Number(currentToken.balance));
@@ -242,10 +244,12 @@ const Index = () => {
         setStep('initial');
 
         // تحديث الرصيد من قاعدة البيانات (في حالة تم ردّ المبلغ من الأدمن)
-        if (tokenData && token) {
-          const { data: currentToken } = await supabase.rpc('check_token_balance', { 
-            token_input: token 
-          });
+        if (tokenData) {
+          const { data: currentToken } = await supabase
+            .from('tokens')
+            .select('balance')
+            .eq('id', tokenData.id)
+            .maybeSingle();
 
           if (currentToken) {
             setTokenBalance(Number(currentToken.balance));
@@ -336,9 +340,12 @@ const Index = () => {
   };
 
   const verifyToken = async (tokenValue: string) => {
-    const { data } = await supabase.rpc('check_token_balance', { 
-      token_input: tokenValue 
-    });
+    const { data } = await supabase
+      .from('tokens')
+      .select('id, balance, is_blocked')
+      .eq('token', tokenValue)
+      .maybeSingle();
+
     return data;
   };
 
@@ -849,10 +856,12 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
           return;
         }
 
-        // Refund balance using RPC
-        const { data: currentToken } = await supabase.rpc('check_token_balance', { 
-          token_input: token 
-        });
+        // Refund balance
+        const { data: currentToken } = await supabase
+          .from('tokens')
+          .select('balance')
+          .eq('id', tokenData.id)
+          .maybeSingle();
 
         if (!currentToken) throw new Error('TOKEN_NOT_FOUND');
 
@@ -940,10 +949,12 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
             setStep('initial');
 
             // تحديث الرصيد من قاعدة البيانات
-            if (tokenData && token) {
-              const { data: currentToken } = await supabase.rpc('check_token_balance', { 
-                token_input: token 
-              });
+            if (tokenData) {
+              const { data: currentToken } = await supabase
+                .from('tokens')
+                .select('balance')
+                .eq('id', tokenData.id)
+                .maybeSingle();
               if (currentToken) setTokenBalance(Number(currentToken.balance));
             }
 
@@ -954,10 +965,12 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
           // Only show result for completed or rejected status
           if (updatedOrder.status === 'completed' || updatedOrder.status === 'rejected') {
             // لا نقوم بردّ الرصيد من هنا لتفادي التكرار (الرد يتم من لوحة الأدمن)
-            if (updatedOrder.status === 'rejected' && tokenData && token) {
-              const { data: currentToken } = await supabase.rpc('check_token_balance', { 
-                token_input: token 
-              });
+            if (updatedOrder.status === 'rejected' && tokenData) {
+              const { data: currentToken } = await supabase
+                .from('tokens')
+                .select('balance')
+                .eq('id', tokenData.id)
+                .maybeSingle();
 
               if (currentToken) {
                 setTokenBalance(Number(currentToken.balance));
@@ -1063,9 +1076,11 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
     };
 
     const refetchBalance = async () => {
-      const { data: currentToken } = await supabase.rpc('check_token_balance', { 
-        token_input: token 
-      });
+      const { data: currentToken } = await supabase
+        .from('tokens')
+        .select('balance')
+        .eq('id', tokenData.id)
+        .maybeSingle();
       if (currentToken?.balance !== undefined && currentToken?.balance !== null) {
         setTokenBalance(Number(currentToken.balance));
       }
