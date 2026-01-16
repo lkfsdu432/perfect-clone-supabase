@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Send, MessageCircle, Check, CheckCheck } from 'lucide-react';
 import { playChatSound } from '@/hooks/useOrderNotification';
+import { sendMessage as sendMessageApi, getMessages } from '@/lib/api';
 
 interface Message {
   id: string;
@@ -15,9 +16,10 @@ interface Message {
 interface OrderChatProps {
   orderId: string;
   senderType: 'customer' | 'admin';
+  tokenValue?: string; // Required for customer to authenticate
 }
 
-const OrderChat = ({ orderId, senderType }: OrderChatProps) => {
+const OrderChat = ({ orderId, senderType, tokenValue }: OrderChatProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -27,25 +29,10 @@ const OrderChat = ({ orderId, senderType }: OrderChatProps) => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // Mark messages as read when viewing
-  const markMessagesAsRead = async () => {
-    const unreadMessages = messages.filter(
-      msg => msg.sender_type !== senderType && !msg.is_read
-    );
-
-    if (unreadMessages.length > 0) {
-      const ids = unreadMessages.map(msg => msg.id);
-      await supabase
-        .from('order_messages')
-        .update({ is_read: true })
-        .in('id', ids);
-    }
-  };
-
   useEffect(() => {
     fetchMessages();
 
-    // Subscribe to new messages and updates
+    // Subscribe to new messages and updates (real-time still works for receiving)
     const channel = supabase
       .channel(`order-messages-${orderId}`)
       .on(
@@ -88,40 +75,57 @@ const OrderChat = ({ orderId, senderType }: OrderChatProps) => {
     };
   }, [orderId, senderType]);
 
-  // Mark messages as read when messages change
-  useEffect(() => {
-    if (messages.length > 0) {
-      markMessagesAsRead();
-    }
-  }, [messages]);
-
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
   const fetchMessages = async () => {
-    const { data } = await supabase
-      .from('order_messages')
-      .select('*')
-      .eq('order_id', orderId)
-      .order('created_at', { ascending: true });
+    if (senderType === 'customer' && tokenValue) {
+      // Use Edge Function for customers
+      const result = await getMessages({ token_value: tokenValue, order_id: orderId });
+      if (result) {
+        setMessages(result.messages as Message[]);
+      }
+    } else if (senderType === 'admin') {
+      // Admins can still use direct query (they have service role access through admin panel)
+      const { data } = await supabase
+        .from('order_messages')
+        .select('*')
+        .eq('order_id', orderId)
+        .order('created_at', { ascending: true });
 
-    setMessages((data || []) as Message[]);
+      setMessages((data || []) as Message[]);
+    }
   };
 
-  const sendMessage = async () => {
+  const handleSendMessage = async () => {
     if (!newMessage.trim() || isSending) return;
 
     setIsSending(true);
 
-    const { error } = await supabase.from('order_messages').insert({
-      order_id: orderId,
-      sender_type: senderType,
-      message: newMessage.trim()
-    });
+    if (senderType === 'customer' && tokenValue) {
+      // Use Edge Function for customers
+      const result = await sendMessageApi({
+        token_value: tokenValue,
+        order_id: orderId,
+        message: newMessage.trim()
+      });
 
-    if (!error) {
-      setNewMessage('');
+      if (result.success) {
+        setNewMessage('');
+        // Message will be added via real-time subscription
+      }
+    } else if (senderType === 'admin') {
+      // Admins can still use direct insert
+      const { error } = await supabase.from('order_messages').insert({
+        order_id: orderId,
+        sender_type: senderType,
+        message: newMessage.trim()
+      });
+
+      if (!error) {
+        setNewMessage('');
+      }
     }
 
     setIsSending(false);
@@ -130,7 +134,7 @@ const OrderChat = ({ orderId, senderType }: OrderChatProps) => {
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      sendMessage();
+      handleSendMessage();
     }
   };
 
@@ -202,7 +206,7 @@ const OrderChat = ({ orderId, senderType }: OrderChatProps) => {
             disabled={isSending}
           />
           <button
-            onClick={sendMessage}
+            onClick={handleSendMessage}
             disabled={!newMessage.trim() || isSending}
             className="btn-primary px-4 py-2 disabled:opacity-50"
           >

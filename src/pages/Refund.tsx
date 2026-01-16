@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { RotateCcw, CheckCircle, AlertCircle, Loader2, Search, XCircle, Clock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Header from '@/components/Header';
+import { createRefund, getTokenData } from '@/lib/api';
 
 interface RefundStatus {
   status: string;
@@ -34,83 +34,23 @@ const Refund = () => {
 
     setIsLoading(true);
 
-    // Verify token exists and check if blocked
-    const { data: tokenData } = await supabase
-      .from('tokens')
-      .select('id, is_blocked')
-      .eq('token', tokenValue.trim())
-      .maybeSingle();
+    // Use Edge Function to create refund
+    const result = await createRefund({
+      token_value: tokenValue.trim(),
+      order_number: orderNumber.trim(),
+      reason: reason.trim()
+    });
 
-    if (!tokenData) {
-      setError('التوكن غير صالح');
-      setIsLoading(false);
-      return;
-    }
-
-    if (tokenData.is_blocked) {
-      setError('هذا التوكن محظور ولا يمكن استخدامه لطلب استرداد');
-      setIsLoading(false);
-      return;
-    }
-
-    // Verify order exists and belongs to this token (support both formats: with/without ORD- prefix)
-    const orderNum = orderNumber.trim();
-    const orderNumWithPrefix = orderNum.startsWith('ORD-') ? orderNum : `ORD-${orderNum}`;
-    const orderNumWithoutPrefix = orderNum.startsWith('ORD-') ? orderNum.replace('ORD-', '') : orderNum;
-
-    const { data: orderData } = await supabase
-      .from('orders')
-      .select('id, status, amount, order_number')
-      .eq('token_id', tokenData.id)
-      .or(`order_number.eq.${orderNum},order_number.eq.${orderNumWithPrefix},order_number.eq.${orderNumWithoutPrefix}`)
-      .maybeSingle();
-
-    if (!orderData) {
-      setError('رقم الطلب غير صحيح أو لا ينتمي لهذا التوكن');
-      setIsLoading(false);
-      return;
-    }
-    
-    // Use the actual order number from DB for consistency
-    const actualOrderNumber = orderData.order_number;
-
-    if (orderData.status === 'pending' || orderData.status === 'in_progress') {
-      setError('لا يمكن طلب استرداد لطلب قيد التنفيذ');
-      setIsLoading(false);
-      return;
-    }
-
-    // Check if ANY refund request exists for this order (not just pending)
-    const { data: existingRefund } = await supabase
-      .from('refund_requests')
-      .select('id, status')
-      .eq('order_number', actualOrderNumber)
-      .maybeSingle();
-
-    if (existingRefund) {
-      if (existingRefund.status === 'pending') {
-        setError('يوجد طلب استرداد قيد المراجعة لهذا الطلب');
-      } else if (existingRefund.status === 'approved') {
-        setError('تم استرداد هذا الطلب مسبقاً');
-      } else {
-        setError('تم رفض طلب الاسترداد لهذا الطلب مسبقاً');
-      }
-      setIsLoading(false);
-      return;
-    }
-
-    // Create refund request
-    const { error: insertError } = await supabase
-      .from('refund_requests')
-      .insert({
-        token_id: tokenData.id,
-        order_number: actualOrderNumber,
-        // DB column is NOT NULL, but UI allows leaving it empty
-        reason: reason.trim() || ''
-      });
-
-    if (insertError) {
-      setError('فشل في إرسال طلب الاسترداد');
+    if (!result.success) {
+      // Map error messages to Arabic
+      const errorMessages: Record<string, string> = {
+        'Invalid token': 'التوكن غير صالح',
+        'Token is blocked': 'هذا التوكن محظور ولا يمكن استخدامه لطلب استرداد',
+        'Order not found or does not belong to this token': 'رقم الطلب غير صحيح أو لا ينتمي لهذا التوكن',
+        'A refund request is already pending for this order': 'يوجد طلب استرداد قيد المراجعة لهذا الطلب',
+        'A refund request already exists for this order': 'تم طلب استرداد لهذا الطلب مسبقاً',
+      };
+      setError(errorMessages[result.error || ''] || result.error || 'فشل في إرسال طلب الاسترداد');
       setIsLoading(false);
       return;
     }
@@ -132,51 +72,34 @@ const Refund = () => {
 
     setIsLoading(true);
 
-    // Verify token exists
-    const { data: tokenData } = await supabase
-      .from('tokens')
-      .select('id')
-      .eq('token', tokenValue.trim())
-      .maybeSingle();
+    // Use Edge Function to get token data including refunds
+    const tokenFullData = await getTokenData(tokenValue.trim());
 
-    if (!tokenData) {
+    if (!tokenFullData) {
       setError('التوكن غير صالح');
       setIsLoading(false);
       return;
     }
 
-    // Get order (support both formats: with/without ORD- prefix)
+    // Find the order
     const orderNum = orderNumber.trim();
     const orderNumWithPrefix = orderNum.startsWith('ORD-') ? orderNum : `ORD-${orderNum}`;
     const orderNumWithoutPrefix = orderNum.startsWith('ORD-') ? orderNum.replace('ORD-', '') : orderNum;
 
-    const { data: orderData } = await supabase
-      .from('orders')
-      .select('id, order_number')
-      .eq('token_id', tokenData.id)
-      .or(`order_number.eq.${orderNum},order_number.eq.${orderNumWithPrefix},order_number.eq.${orderNumWithoutPrefix}`)
-      .maybeSingle();
+    const order = tokenFullData.orders.find(o => 
+      o.order_number === orderNum || 
+      o.order_number === orderNumWithPrefix || 
+      o.order_number === orderNumWithoutPrefix
+    );
 
-    if (!orderData) {
+    if (!order) {
       setError('رقم الطلب غير صحيح أو لا ينتمي لهذا التوكن');
       setIsLoading(false);
       return;
     }
 
-    const actualOrderNumber = orderData.order_number;
-
-    // Get refund request
-    const { data: refundData, error: refundError } = await supabase
-      .from('refund_requests')
-      .select('status, reason, admin_notes, created_at, processed_at')
-      .eq('order_number', actualOrderNumber)
-      .maybeSingle();
-
-    if (refundError) {
-      setError('حدث خطأ أثناء البحث');
-      setIsLoading(false);
-      return;
-    }
+    // Find refund for this order
+    const refundData = tokenFullData.refunds.find(r => r.order_number === order.order_number);
 
     if (!refundData) {
       setError('لا يوجد طلب استرداد لهذا الطلب. يمكنك تقديم طلب استرداد من تبويب "تقديم طلب"');

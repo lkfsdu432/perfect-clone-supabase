@@ -56,6 +56,7 @@ export interface TokenFullData {
 
 export interface Message {
   id: string;
+  order_id?: string;
   message: string;
   sender_type: string;
   is_admin: boolean;

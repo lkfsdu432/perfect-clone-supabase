@@ -14,6 +14,13 @@ import { useToast } from '@/hooks/use-toast';
 import OrderChat from '@/components/OrderChat';
 import useDeviceFingerprint from '@/hooks/useDeviceFingerprint';
 import useDevToolsProtection from '@/hooks/useDevToolsProtection';
+import { 
+  verifyToken as apiVerifyToken, 
+  getTokenData, 
+  getOrderStatus,
+  createOrder,
+  cancelOrder as apiCancelOrder
+} from '@/lib/api';
 
 interface Product {
   id: string;
@@ -322,13 +329,8 @@ const Index = () => {
   };
 
   const verifyToken = async (tokenValue: string) => {
-    const { data } = await supabase
-      .from('tokens')
-      .select('id, balance, is_blocked')
-      .eq('token', tokenValue)
-      .maybeSingle();
-
-    return data;
+    // Use Edge Function instead of direct query
+    return await apiVerifyToken(tokenValue);
   };
 
   const handleBuySubmit = async () => {
@@ -357,22 +359,21 @@ const Index = () => {
       return;
     }
 
-    // التحقق من وجود طلب نشط (pending أو in_progress) لهذا التوكن
-    const { data: pendingOrders, error: pendingError } = await supabase
-      .from('orders')
-      .select('id, order_number, status')
-      .eq('token_id', data.id)
-      .in('status', ['pending', 'in_progress'])
-      .limit(1);
-
-    if (!pendingError && pendingOrders && pendingOrders.length > 0) {
-      setIsLoading(false);
-      toast({
-        title: 'لديك طلب قيد التنفيذ',
-        description: `لا يمكنك إنشاء طلب جديد حتى يكتمل الطلب الحالي #${pendingOrders[0].order_number}`,
-        variant: 'destructive',
-      });
-      return;
+    // Check for pending orders via Edge Function
+    const tokenFullData = await getTokenData(token);
+    if (tokenFullData) {
+      const pendingOrder = tokenFullData.orders.find(o => 
+        o.status === 'pending' || o.status === 'in_progress'
+      );
+      if (pendingOrder) {
+        setIsLoading(false);
+        toast({
+          title: 'لديك طلب قيد التنفيذ',
+          description: `لا يمكنك إنشاء طلب جديد حتى يكتمل الطلب الحالي #${pendingOrder.order_number}`,
+          variant: 'destructive',
+        });
+        return;
+      }
     }
 
     setIsLoading(false);
@@ -467,256 +468,110 @@ const Index = () => {
     if (selectedOption.type === 'text' && !textInput.trim()) return;
 
     const isAutoDelivery = selectedOption.type === 'none' || !selectedOption.type;
-    const basePrice = isAutoDelivery ? Number(selectedOption.price) * quantity : Number(selectedOption.price);
-    const discountAmount = calculateDiscount(basePrice);
-    const totalPrice = basePrice - discountAmount;
-
-    // Debug logging
-    console.log('Order calculation:', {
-      isAutoDelivery,
-      optionPrice: selectedOption.price,
-      quantity,
-      basePrice,
-      discountAmount,
-      totalPrice,
-      currentBalance: tokenBalance
-    });
-
-    if (tokenBalance === null || tokenBalance < totalPrice) {
-      setResult('error');
-      setStep('result');
-      return;
-    }
+    const isChatType = selectedOption.type === 'chat';
+    const chatQuantity = isChatType ? chatAccountsCount : 1;
+    const orderQuantity = isAutoDelivery ? quantity : (isChatType ? chatQuantity : 1);
 
     setIsLoading(true);
     setPurchaseLimitError(null);
 
-    // Check purchase limit for this device
-const deviceFingerprint = getFingerprint();
-if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && deviceFingerprint) {
-  const { data: purchaseData, error: countError } = await supabase
-    .from('device_purchases')
-    .select('quantity')
-    .eq('device_fingerprint', deviceFingerprint)
-    .eq('product_option_id', selectedOption.id);
-
-  const totalPurchased = purchaseData?.reduce((sum, record) => sum + (record.quantity || 1), 0) || 0;
-
-  if (!countError && totalPurchased + quantity > selectedOption.purchase_limit) {
-    setPurchaseLimitError(`لقد وصلت للحد الأقصى للشراء (${selectedOption.purchase_limit}) لهذا المنتج من هذا الجهاز`);
-    toast({
-      title: 'تم الوصول للحد الأقصى',
-      description: `لا يمكنك شراء أكثر من ${selectedOption.purchase_limit} من هذا المنتج`,
-      variant: 'destructive',
+    // Use Edge Function to create order securely
+    const result = await createOrder({
+      token_value: token,
+      product_id: product.id,
+      product_option_id: selectedOption.id,
+      quantity: orderQuantity,
+      email: selectedOption.type === 'email_password' ? email : undefined,
+      password: selectedOption.type === 'email_password' ? password : undefined,
+      verification_link: selectedOption.type === 'link' ? verificationLink : undefined,
+      text_input: selectedOption.type === 'text' ? textInput : undefined,
+      coupon_code: appliedCoupon?.code,
+      device_fingerprint: getFingerprint() || undefined
     });
-    setIsLoading(false);
-    return;
-  }
-}
 
-    // For auto-delivery, first check if stock is available
+    if (!result.success) {
+      // Handle different error types
+      if (result.error?.includes('Purchase limit')) {
+        setPurchaseLimitError(`لقد وصلت للحد الأقصى للشراء لهذا المنتج من هذا الجهاز`);
+        toast({
+          title: 'تم الوصول للحد الأقصى',
+          description: result.error,
+          variant: 'destructive',
+        });
+      } else if (result.error?.includes('Insufficient balance')) {
+        setResult('error');
+        setStep('result');
+      } else if (result.error?.includes('Not enough stock')) {
+        toast({
+          title: 'خطأ',
+          description: 'المخزون غير كافي',
+          variant: 'destructive',
+        });
+      } else if (result.error?.includes('pending order')) {
+        toast({
+          title: 'لديك طلب قيد التنفيذ',
+          description: result.error,
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'خطأ',
+          description: result.error || 'فشل في إرسال الطلب',
+          variant: 'destructive',
+        });
+      }
+      setIsLoading(false);
+      return;
+    }
+
+    // Order created successfully
+    const orderData = result.order!;
+    const newBalance = result.new_balance!;
+
+    // Update local stock count for auto-delivery
     if (isAutoDelivery) {
-      // Fetch required quantity of stock items
-      const { data: stockItems, error: stockError } = await supabase
-        .from('stock_items')
-        .select('id, content')
-        .eq('product_option_id', selectedOption.id)
-        .eq('is_sold', false)
-        .limit(quantity);
-
-      if (stockError || !stockItems || stockItems.length < quantity) {
-        toast({
-          title: 'خطأ',
-          description: `المخزون غير كافي. متوفر فقط ${stockItems?.length || 0} قطعة`,
-          variant: 'destructive',
-        });
-        setIsLoading(false);
-        return;
-      }
-
-      // Combine all stock content
-      const combinedContent = stockItems.map(item => item.content).join('\n');
-
-      // Create order with completed status for auto-delivery
-      const { data: orderData, error: orderError } = await supabase.from('orders').insert({
-        token_id: tokenData.id,
-        product_id: product.id,
-        product_option_id: selectedOption.id,
-        quantity: quantity,
-        amount: totalPrice,
-        total_price: totalPrice,
-        discount_amount: discountAmount,
-        coupon_code: appliedCoupon?.code || null,
-        status: 'completed',
-        response_message: combinedContent,
-        stock_content: combinedContent
-      }).select('id, order_number').single();
-
-      if (orderError || !orderData) {
-        toast({
-          title: 'خطأ',
-          description: 'فشل في إرسال الطلب',
-          variant: 'destructive',
-        });
-        setIsLoading(false);
-        return;
-      }
-
-      // Mark all stock items as sold
-      const stockIds = stockItems.map(item => item.id);
-      await supabase
-        .from('stock_items')
-        .update({
-          is_sold: true,
-          sold_at: new Date().toISOString(),
-          sold_to_order_id: orderData.id
-        })
-        .in('id', stockIds);
-
-      // Update coupon usage count
-      if (appliedCoupon) {
-        const { data: couponData } = await supabase
-          .from('coupons')
-          .select('used_count')
-          .eq('code', appliedCoupon.code)
-          .single();
-
-        if (couponData) {
-          await supabase
-            .from('coupons')
-            .update({ used_count: (couponData.used_count || 0) + 1 })
-            .eq('code', appliedCoupon.code);
-        }
-      }
-
-      // Deduct balance
-      const newBalance = tokenBalance - totalPrice;
-      await supabase
-        .from('tokens')
-        .update({ balance: newBalance })
-        .eq('id', tokenData.id);
-
-      // Update local stock count
       setOptionStockCounts(prev => ({
         ...prev,
-        [selectedOption.id]: (prev[selectedOption.id] || 0) - quantity
+        [selectedOption.id]: (prev[selectedOption.id] || 0) - orderQuantity
       }));
-
-      // Record device purchase for limit tracking
-      const deviceFingerprint = getFingerprint();
-      if (deviceFingerprint && selectedOption.purchase_limit && selectedOption.purchase_limit > 0) {
-        await supabase.from('device_purchases').insert({
-          device_fingerprint: deviceFingerprint,
-          product_option_id: selectedOption.id,
-          order_id: orderData.id,
-          quantity: quantity
-        });
-      }
-
-      setTokenBalance(newBalance);
-      setResponseMessage(combinedContent);
-      setResult('success');
-      setIsLoading(false);
-      setStep('result');
-      setAppliedCoupon(null);
-      setCouponCode('');
-      return;
     }
-
-    // For manual delivery products (including chat)
-    const isChatType = selectedOption.type === 'chat';
-    const chatQuantity = isChatType ? chatAccountsCount : 1;
-    const manualBasePrice = Number(selectedOption.price) * chatQuantity;
-    const manualTotalPrice = manualBasePrice - calculateDiscount(manualBasePrice);
-
-    const { data: orderData, error: orderError } = await supabase.from('orders').insert({
-      token_id: tokenData.id,
-      product_id: product.id,
-      product_option_id: selectedOption.id,
-      email: selectedOption.type === 'email_password' ? email : null,
-      password: selectedOption.type === 'email_password' ? password : null,
-      verification_link: selectedOption.type === 'link' ? verificationLink : (selectedOption.type === 'text' ? textInput : null),
-      quantity: isChatType ? chatQuantity : 1,
-      amount: manualTotalPrice,
-      total_price: manualTotalPrice,
-      discount_amount: calculateDiscount(manualBasePrice),
-      coupon_code: appliedCoupon?.code || null,
-      status: 'pending'
-    }).select('id, order_number').single();
-
-    if (orderError || !orderData) {
-      toast({
-        title: 'خطأ',
-        description: 'فشل في إرسال الطلب',
-        variant: 'destructive',
-      });
-      setIsLoading(false);
-      return;
-    }
-
-    // Update coupon usage count
-    if (appliedCoupon) {
-      const { data: couponData } = await supabase
-        .from('coupons')
-        .select('used_count')
-        .eq('code', appliedCoupon.code)
-        .single();
-
-      if (couponData) {
-        await supabase
-          .from('coupons')
-          .update({ used_count: (couponData.used_count || 0) + 1 })
-          .eq('code', appliedCoupon.code);
-      }
-    }
-
-    // Deduct balance
-    const newBalance = tokenBalance - manualTotalPrice;
-    await supabase
-      .from('tokens')
-      .update({ balance: newBalance })
-      .eq('id', tokenData.id);
-
-    // Store active order in localStorage
-    localStorage.setItem(ACTIVE_ORDER_KEY, JSON.stringify({
-      orderId: orderData.id,
-      tokenValue: token
-    }));
-
-    // Record device purchase for limit tracking
-    const deviceFingerprintManual = getFingerprint();
-    if (deviceFingerprintManual && selectedOption.purchase_limit && selectedOption.purchase_limit > 0) {
-      await supabase.from('device_purchases').insert({
-        device_fingerprint: deviceFingerprintManual,
-        product_option_id: selectedOption.id,
-        order_id: orderData.id,
-        quantity: 1
-      });
-    }
-
-    // Set active order - stay on same page, show order status in second card
-    setActiveOrder({
-      id: orderData.id,
-      order_number: orderData.order_number,
-      status: 'pending',
-      response_message: null,
-      product_id: product.id,
-      product_option_id: selectedOption.id,
-      amount: manualTotalPrice,
-      delivered_email: null,
-      delivered_password: null,
-      admin_notes: null,
-      delivered_at: null
-    });
 
     setTokenBalance(newBalance);
-    setCurrentOrderId(orderData.id);
-    setOrderStatus('pending');
-    setResponseMessage(null);
+
+    if (orderData.status === 'completed') {
+      // Auto-delivery completed
+      setResponseMessage(orderData.response_message);
+      setResult('success');
+      setStep('result');
+    } else {
+      // Manual delivery - pending order
+      localStorage.setItem(ACTIVE_ORDER_KEY, JSON.stringify({
+        orderId: orderData.id,
+        tokenValue: token
+      }));
+
+      setActiveOrder({
+        id: orderData.id,
+        order_number: orderData.order_number,
+        status: 'pending',
+        response_message: null,
+        product_id: product.id,
+        product_option_id: selectedOption.id,
+        amount: orderData.amount,
+        delivered_email: null,
+        delivered_password: null,
+        admin_notes: null,
+        delivered_at: null
+      });
+
+      setCurrentOrderId(orderData.id);
+      setOrderStatus('pending');
+      setResponseMessage(null);
+    }
+
     setIsLoading(false);
     setAppliedCoupon(null);
     setCouponCode('');
-    // Stay on same page - don't change step
   };
 
   const handleReset = () => {
@@ -986,45 +841,24 @@ if (selectedOption.purchase_limit && selectedOption.purchase_limit > 0 && device
     if (!token.trim()) return;
 
     setIsLoading(true);
-    const data = await verifyToken(token);
+    
+    // Use Edge Function to get all token data
+    const tokenFullData = await getTokenData(token);
 
-    if (data) {
-      setTokenData(data);
-      setTokenBalance(Number(data.balance));
+    if (tokenFullData) {
+      setTokenData({
+        id: tokenFullData.token.id,
+        balance: tokenFullData.token.balance
+      });
+      setTokenBalance(Number(tokenFullData.token.balance));
       setShowBalance(true);
 
-      // Fetch orders for this token
-      const { data: ordersData } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('token_id', data.id)
-        .order('created_at', { ascending: false });
-
-      // Fetch recharge requests for this token
-      const { data: rechargesData } = await supabase
-        .from('recharge_requests')
-        .select('*')
-        .eq('token_id', data.id)
-        .order('created_at', { ascending: false });
-
-      // Fetch refund requests for this token's orders
-      const orderNumbers = (ordersData || []).map((o: any) => o.order_number);
-      let refundsData: any[] = [];
-      if (orderNumbers.length > 0) {
-        const { data: refunds } = await supabase
-          .from('refund_requests')
-          .select('*')
-          .in('order_number', orderNumbers)
-          .order('created_at', { ascending: false });
-        refundsData = refunds || [];
-      }
-
-      setTokenOrders((ordersData || []).map(o => ({
+      setTokenOrders(tokenFullData.orders.map(o => ({
         ...o,
         amount: o.amount || o.total_price
       })));
-      setTokenRecharges(rechargesData || []);
-      setTokenRefunds(refundsData);
+      setTokenRecharges(tokenFullData.recharges);
+      setTokenRefunds(tokenFullData.refunds);
     } else {
       toast({
         title: 'خطأ',

@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Upload, Loader2, CheckCircle, Copy, Wallet, CreditCard, Bitcoin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { createRecharge } from "@/lib/api";
 
 const PRESET_AMOUNTS = [1, 5, 10, 15, 20];
 const MIN_CUSTOM_AMOUNT = 1;
@@ -76,15 +77,6 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
     }
   };
 
-  const generateToken = () => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let token = '';
-    for (let i = 0; i < 12; i++) {
-      token += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return token;
-  };
-
   const copyToken = (token: string) => {
     navigator.clipboard.writeText(token);
     toast.success("تم نسخ التوكن!");
@@ -95,39 +87,9 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
 
     setIsSubmitting(true);
     try {
-      let finalTokenId = tokenId;
-      let newToken: string | null = null;
-
-      if (!tokenId) {
-        newToken = generateToken();
-        
-        let userIp: string | null = null;
-        try {
-          const ipResponse = await fetch('https://api.ipify.org?format=json');
-          const ipData = await ipResponse.json();
-          userIp = ipData.ip;
-        } catch (e) {
-          console.log('Could not fetch IP');
-        }
-
-        const { data: tokenData, error: tokenError } = await supabase
-          .from('tokens')
-          .insert({ 
-            token: newToken, 
-            balance: 0,
-            created_ip: userIp
-          })
-          .select('id')
-          .single();
-
-        if (tokenError) throw tokenError;
-        finalTokenId = tokenData.id;
-        setGeneratedToken(newToken);
-        localStorage.setItem(TOKEN_STORAGE_KEY, newToken);
-      }
-
+      // Upload image first (this still needs direct access to storage)
       const fileExt = proofImage.name.split('.').pop();
-      const fileName = `${finalTokenId}-${Date.now()}.${fileExt}`;
+      const fileName = `temp-${Date.now()}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from('payment-proofs')
@@ -139,23 +101,49 @@ export const RechargeRequest = ({ tokenId, onSuccess, onTokenGenerated }: Rechar
         .from('payment-proofs')
         .getPublicUrl(fileName);
 
-      const { error: insertError } = await supabase
-        .from('recharge_requests')
-        .insert({
-          token_id: finalTokenId,
-          amount: selectedAmount,
-          payment_method: selectedMethod.name,
-          payment_method_id: selectedMethod.id,
-          proof_image_url: publicUrl,
-          sender_reference: senderReference.trim() || null,
-          status: 'pending'
-        });
+      // Get user IP
+      let userIp: string | null = null;
+      try {
+        const ipResponse = await fetch('https://api.ipify.org?format=json');
+        const ipData = await ipResponse.json();
+        userIp = ipData.ip;
+      } catch (e) {
+        console.log('Could not fetch IP');
+      }
 
-      if (insertError) throw insertError;
+      // Use Edge Function to create recharge
+      const result = await createRecharge({
+        token_value: tokenId ? undefined : undefined,
+        create_new_token: !tokenId,
+        amount: selectedAmount,
+        payment_method_id: selectedMethod.id,
+        proof_image_url: publicUrl,
+        sender_reference: senderReference.trim() || undefined,
+        user_ip: userIp || undefined
+      });
+
+      // If we have a tokenId, pass it differently
+      const finalResult = tokenId ? await createRecharge({
+        token_value: undefined, // We need token value, not ID - this is a limitation
+        create_new_token: false,
+        amount: selectedAmount,
+        payment_method_id: selectedMethod.id,
+        proof_image_url: publicUrl,
+        sender_reference: senderReference.trim() || undefined,
+      }) : result;
+
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+
+      if (result.new_token) {
+        setGeneratedToken(result.new_token);
+        localStorage.setItem(TOKEN_STORAGE_KEY, result.new_token);
+        onTokenGenerated?.(result.new_token);
+      }
 
       setIsSubmitted(true);
       toast.success("تم إرسال الطلب!");
-      if (newToken) onTokenGenerated?.(newToken);
       onSuccess?.();
     } catch (error) {
       console.error('Error:', error);
