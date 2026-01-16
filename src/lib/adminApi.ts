@@ -149,9 +149,24 @@ export async function updateOrder(orderId: string, data: any) {
   return adminAction('update_order', { order_id: orderId, data });
 }
 
+// Delete order
+export async function deleteOrder(orderId: string) {
+  return adminAction('delete_order', { order_id: orderId });
+}
+
 // Update token
 export async function updateToken(tokenId: string, data: any) {
   return adminAction('update_token', { token_id: tokenId, data });
+}
+
+// Add token
+export async function addToken(data: any) {
+  return adminAction('add_token', { data });
+}
+
+// Delete token
+export async function deleteToken(tokenId: string) {
+  return adminAction('delete_token', { token_id: tokenId });
 }
 
 // Update recharge

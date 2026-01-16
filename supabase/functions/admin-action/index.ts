@@ -185,6 +185,21 @@ Deno.serve(async (req) => {
         result = { success: true };
         break;
 
+      case 'delete_order':
+        if (!adminUser.can_manage_orders) {
+          return new Response(
+            JSON.stringify({ error: 'Permission denied' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        const { error: deleteOrderError } = await supabase
+          .from('orders')
+          .delete()
+          .eq('id', payload.order_id);
+        if (deleteOrderError) throw deleteOrderError;
+        result = { success: true };
+        break;
+
       case 'update_token':
         if (!adminUser.can_manage_tokens) {
           return new Response(
@@ -197,6 +212,37 @@ Deno.serve(async (req) => {
           .update(payload.data)
           .eq('id', payload.token_id);
         if (tokenError) throw tokenError;
+        result = { success: true };
+        break;
+
+      case 'add_token':
+        if (!adminUser.can_manage_tokens) {
+          return new Response(
+            JSON.stringify({ error: 'Permission denied' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        const { data: newToken, error: addTokenError } = await supabase
+          .from('tokens')
+          .insert(payload.data)
+          .select()
+          .single();
+        if (addTokenError) throw addTokenError;
+        result = { success: true, token: newToken };
+        break;
+
+      case 'delete_token':
+        if (!adminUser.can_manage_tokens) {
+          return new Response(
+            JSON.stringify({ error: 'Permission denied' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        const { error: deleteTokenError } = await supabase
+          .from('tokens')
+          .delete()
+          .eq('id', payload.token_id);
+        if (deleteTokenError) throw deleteTokenError;
         result = { success: true };
         break;
 

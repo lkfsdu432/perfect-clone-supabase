@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Send, MessageCircle, Check, CheckCheck } from 'lucide-react';
 import { playChatSound } from '@/hooks/useOrderNotification';
 import { sendMessage as sendMessageApi, getMessages } from '@/lib/api';
+import { sendAdminMessage, fetchMessages as fetchAdminMessages } from '@/lib/adminApi';
 
 interface Message {
   id: string;
@@ -87,14 +88,11 @@ const OrderChat = ({ orderId, senderType, tokenValue }: OrderChatProps) => {
         setMessages(result.messages as Message[]);
       }
     } else if (senderType === 'admin') {
-      // Admins can still use direct query (they have service role access through admin panel)
-      const { data } = await supabase
-        .from('order_messages')
-        .select('*')
-        .eq('order_id', orderId)
-        .order('created_at', { ascending: true });
-
-      setMessages((data || []) as Message[]);
+      // Use adminApi for admins
+      const result = await fetchAdminMessages(orderId);
+      if (result.success) {
+        setMessages((result.data?.messages || []) as Message[]);
+      }
     }
   };
 
@@ -116,15 +114,11 @@ const OrderChat = ({ orderId, senderType, tokenValue }: OrderChatProps) => {
         // Message will be added via real-time subscription
       }
     } else if (senderType === 'admin') {
-      // Admins can still use direct insert
-      const { error } = await supabase.from('order_messages').insert({
-        order_id: orderId,
-        sender_type: senderType,
-        message: newMessage.trim()
-      });
-
-      if (!error) {
+      // Use adminApi for admins
+      const result = await sendAdminMessage(orderId, newMessage.trim());
+      if (result.success) {
         setNewMessage('');
+        // Message will be added via real-time subscription
       }
     }
 
